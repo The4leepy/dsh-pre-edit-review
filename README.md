@@ -27,6 +27,10 @@ scripts/doctor.sh                        # 体检
 | Phase 4 / M4 | 严格模式整会话 E2E、IPC nonce/帧上限、崩溃对账与演练、`docs/security.md` 定稿 | ✅ 完成，见 [docs/m4-status.md](docs/m4-status.md) |
 | Phase 5 / M5 | 安装/卸载/体检脚本、打包整理（LICENSE/CHANGELOG）、安装/使用/排障文档 + 干净机器清单 | ✅ 完成，见 [docs/m5-status.md](docs/m5-status.md) |
 
+## 验证记录
+
+- 人工交互测试（2026-11-05，真实 DSH + VS Code）：[docs/interaction-test-2026-11-05.md](docs/interaction-test-2026-11-05.md)
+
 ## 架构
 
 ```
