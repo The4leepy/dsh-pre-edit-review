@@ -68,6 +68,8 @@ pnpm run build                    # 插件 bundle + 扩展 bundle
 pnpm run package:extension        # 产出 packages/vscode-extension/*.vsix
 ```
 
+> **开发本仓库时的约定**：不要在日常开发中把 `dsh-pre-edit-review` 装进你自己的 profile——那会让 Agent 每次改项目代码都弹审批。需要联调/跑 E2E 时，先 `touch ~/.dsh/pre-edit-review/DISABLED`（kill switch），安装、测试、卸载后再删除状态目录。
+
 真实环境安装（需要用户批准）：
 
 ```bash
@@ -83,4 +85,5 @@ pnpm run package:extension        # 产出 packages/vscode-extension/*.vsix
 - 插件安装在 profile 后对该 profile 的**所有会话**生效；CLI/headless 场景没有 VS Code 客户端时会 fail-closed（拒绝写入），可用 `/review off` 或配置 `enabled: false` 关闭。
 - 崩溃时未审批请求一律保持未提交；重启后 pending 记录标记为 expired，绝不重放提交。
 - 急停开关：`touch ~/.dsh/pre-edit-review/DISABLED` 后 1 秒内所有审批旁路（插件故障时的恢复通道）。
+- **放行模式（用户主动选择）**：在会话里输入 `/review bypass` 开启、`/review bypass off` 关闭。开启后该会话的文件写入**直接执行、不再弹审批**（沙箱策略不变，`read-only` 仍然禁写）；状态栏会显示 `· 放行`，每次切换都写入审计。仅在内存中生效，Host 重启自动恢复审批。
 - 通信只接受对既有 `requestId` 的 accept/reject；协议中不存在"写任意文件"的方法。

@@ -26,6 +26,7 @@ import {
   isHelloParams,
   splitFrames,
   type DecisionResult,
+  type ReviewModeParams,
   type ReviewRequestParams,
   type RpcResponse,
 } from '../../../shared/src/index.ts'
@@ -52,6 +53,8 @@ export interface IpcServerOptions {
   handleDecision: DecisionHandler
   onClientChanged?(connected: boolean): void
   onAutoAccept?(): void
+  /** Whether any live session currently bypasses review (放行模式). */
+  mode?(): boolean
   now?: () => number
 }
 
@@ -260,7 +263,12 @@ export class IpcServer {
       }
       this.authed = true
       this.options.onClientChanged?.(true)
-      this.reply(message.id, { ok: true, serverVersion: this.options.serverVersion, stateDir: this.options.stateDir })
+      this.reply(message.id, {
+        ok: true,
+        serverVersion: this.options.serverVersion,
+        stateDir: this.options.stateDir,
+        bypass: this.options.mode?.() === true,
+      })
       return
     }
 
@@ -360,6 +368,12 @@ export class IpcServer {
       options.signal.addEventListener('abort', onAbort, { once: true })
       this.send({ jsonrpc: '2.0', method: METHODS.reviewRequest, params })
     })
+  }
+
+  /** Push the current review-bypass state to the client. */
+  notifyMode(params: ReviewModeParams): void {
+    if (!this.connected) return
+    this.send({ jsonrpc: '2.0', method: METHODS.reviewMode, params })
   }
 
   /** Withdraw an outstanding request (timeout, cancellation, disconnect). */

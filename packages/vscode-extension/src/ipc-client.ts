@@ -54,6 +54,8 @@ export interface IpcConnectionInfo {
   error?: string
   /** True when this client had a live connection at least once before. */
   wasConnected?: boolean
+  /** True when the Host reports review bypass (放行模式) for some live session. */
+  bypass?: boolean
 }
 
 export interface IpcClientOptions {
@@ -196,7 +198,7 @@ export class IpcClient {
       this.everConnected = true
       this.state = 'connected'
       this.log(`connected to ${this.socketPath}`)
-      this.options.onConnectionChanged({ connected: true })
+      this.options.onConnectionChanged({ connected: true, bypass: result['bypass'] === true })
     } catch (error) {
       if (!this.isCurrent(attempt)) return
       const authFailed = error instanceof IpcRpcError && error.code === RPC_ERRORS.AUTH_FAILED
@@ -209,6 +211,7 @@ export class IpcClient {
         authFailed,
         error: describeError(error),
         wasConnected: this.everConnected,
+        bypass: false,
       })
       this.scheduleReconnect()
     }

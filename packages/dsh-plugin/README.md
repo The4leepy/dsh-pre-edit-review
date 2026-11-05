@@ -29,6 +29,7 @@
 | `enableAutoAccept` / `autoAcceptMax` | `true` / `20` | 允许扩展侧"预授权窗口"自动接受 |
 | `stateDir` | `~/.dsh/pre-edit-review` | staging/audit/token/socket 目录（日志与 socket 均为 0600） |
 | `noticeOnUserEdit` | `true` | 用户改过提案时，在工具结果后追加提示让模型重新读取 |
+| `allowBypass` | `true` | 是否允许 `/review bypass` 放行模式（会话级、仅用户可开） |
 
 ## 会话命令
 
@@ -39,6 +40,7 @@
 | `/review strict` | 切到 `read-only` 会话策略（唯一不可绕过模式） |
 | `/review balanced` | 切回 `workspace-write` |
 | `/review history [n]` | 最近 n 条审批记录（默认 10，最多 50；只含路径/事件/哈希，无内容） |
+| `/review bypass` / `/review bypass on|off` | **放行模式**：该会话的写操作直接执行、不再审批（用户主动开启；沙箱策略不变；内存态，重启复位；每次切换写审计）。`allowBypass:false` 可禁用该命令 |
 
 ## 安全与失败语义
 
@@ -48,6 +50,7 @@
 - `str_replace_editor` 的 `view`、以及前置条件必然失败的调用（文件不存在/已存在、匹配不唯一、参数非法）会**直通**给真实工具，由工具产生其原生错误，不消耗审批。
 - 只接受对既有 `requestId` 的决策；重复决策幂等丢弃（返回 `already-decided`）。
 - 崩溃恢复：启动时把 pending 记录标记为 expired，不重放提交。
+- 放行模式只能由**用户在会话命令**里开启（Agent 无法通过任何工具/IPC 打开）；它只跳过审批，不改变沙箱：`read-only` 下仍然无法写文件。
 
 ## 开发
 

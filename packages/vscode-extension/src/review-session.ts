@@ -14,6 +14,7 @@ import type {
   DecisionParams,
   DecisionResult,
   ReviewCancelParams,
+  ReviewModeParams,
   ReviewRequestParams,
   ReviewStateParams,
   ServerNotification,
@@ -114,6 +115,7 @@ export class ReviewSession {
   private readonly awaitingOutcome = new Map<string, AwaitingOutcome>()
   private autoAcceptTimer: NodeJS.Timeout | undefined
   private autoAcceptUntil: number | undefined
+  private bypassActiveState = false
   private disposed = false
   /** One onboarding hint per VS Code session; decisions live on the title bar. */
   private firstHintShown = false
@@ -172,6 +174,11 @@ export class ReviewSession {
 
   get autoAcceptArmed(): boolean {
     return this.autoAcceptTimer !== undefined
+  }
+
+  /** True when the Host reported that a session runs with review bypassed. */
+  get bypassActive(): boolean {
+    return this.bypassActiveState
   }
 
   get autoAcceptDeadline(): number | undefined {
@@ -377,12 +384,22 @@ export class ReviewSession {
       case METHODS.reviewState:
         this.onReviewState(notification.params)
         return
+      case METHODS.reviewMode:
+        this.onReviewMode(notification.params)
+        return
       case METHODS.serverShutdown:
         this.onServerShutdown(notification.params)
         return
       default:
         return
     }
+  }
+
+  private onReviewMode(params: ReviewModeParams): void {
+    if (this.bypassActiveState === params.bypass) return
+    this.bypassActiveState = params.bypass
+    this.log(`review bypass ${params.bypass ? 'enabled' : 'disabled'} by the Host`)
+    this.notifyStateChanged()
   }
 
   private async onReviewRequest(params: ReviewRequestParams): Promise<void> {
@@ -523,6 +540,7 @@ export class ReviewSession {
   // -- connection ---------------------------------------------------------
 
   private onConnectionChanged(info: IpcConnectionInfo): void {
+    if (info.bypass !== undefined) this.bypassActiveState = info.bypass
     if (!info.connected) {
       this.disarmAutoAccept('disconnect')
       const discarded = this.clearPending()

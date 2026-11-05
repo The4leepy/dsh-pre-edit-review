@@ -94,3 +94,8 @@ node build.mjs
 ```
 
 Install the produced VSIX with `code --install-extension deepseek-pre-edit-review-0.2.0.vsix`.
+
+
+## Review bypass (放行模式)
+
+When the Host reports `/review bypass` active for a session, the status bar appends `· 放行 / · bypass` and the tooltip explains that writes are not reviewed. The extension only reflects Host state; it cannot enable or disable bypass.

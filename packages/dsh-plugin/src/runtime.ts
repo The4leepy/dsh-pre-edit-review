@@ -6,6 +6,7 @@
  * awaited by the first review and exposed as `ready`.
  */
 import type { LoggerView, HostContext } from './host.ts'
+import { createBypassRegistry, type BypassRegistry } from './bypass.ts'
 import { IpcServer } from './ipc/server.ts'
 import { ReviewCoordinator } from './review-coordinator.ts'
 import { StagingStore } from './staging/store.ts'
@@ -19,12 +20,14 @@ export interface PluginRuntime {
   store: StagingStore
   ipc: IpcServer
   coordinator: ReviewCoordinator
+  bypass: BypassRegistry
   ready: Promise<void>
   dispose(): Promise<void>
 }
 
 export function createRuntime(ctx: HostContext, config: PluginConfig, logger: LoggerView): PluginRuntime {
   const store = new StagingStore({ dir: config.stateDir })
+  const bypass = createBypassRegistry()
   let coordinatorRef: ReviewCoordinator | undefined
 
   const ipc = new IpcServer({
@@ -39,7 +42,9 @@ export function createRuntime(ctx: HostContext, config: PluginConfig, logger: Lo
     },
     onClientChanged: (connected) => {
       logger.info(`[pre-edit-review] review client ${connected ? 'connected' : 'disconnected'}`)
+      if (connected) ipc.notifyMode({ bypass: bypass.anyActive() })
     },
+    mode: () => bypass.anyActive(),
   })
 
   const target = createCommitTarget('direct-workspace')
@@ -71,6 +76,7 @@ export function createRuntime(ctx: HostContext, config: PluginConfig, logger: Lo
     store,
     ipc,
     coordinator,
+    bypass,
     ready,
     dispose: async () => {
       await ipc.stop()

@@ -20,6 +20,7 @@ export const METHODS = {
   ping: 'ping',
   reviewRequest: 'review/request',
   reviewCancel: 'review/cancel',
+  reviewMode: 'review/mode',
   reviewState: 'review/state',
   serverShutdown: 'server/shutdown',
 } as const
@@ -46,6 +47,8 @@ export interface HelloResult {
   ok: true
   serverVersion: string
   stateDir: string
+  /** True when at least one live session currently runs with review bypassed. */
+  bypass?: boolean
 }
 
 export interface DecisionParams {
@@ -118,6 +121,11 @@ export interface ReviewStateParams {
   detail?: string
 }
 
+/** Review bypass (放行模式) changed: skip the pre-edit review for the session. */
+export interface ReviewModeParams {
+  bypass: boolean
+}
+
 export interface ServerShutdownParams {
   reason?: string
 }
@@ -139,6 +147,7 @@ export type ServerNotification =
   | { jsonrpc: '2.0'; method: typeof METHODS.reviewRequest; params: ReviewRequestParams }
   | { jsonrpc: '2.0'; method: typeof METHODS.reviewCancel; params: ReviewCancelParams }
   | { jsonrpc: '2.0'; method: typeof METHODS.reviewState; params: ReviewStateParams }
+  | { jsonrpc: '2.0'; method: typeof METHODS.reviewMode; params: ReviewModeParams }
   | { jsonrpc: '2.0'; method: typeof METHODS.serverShutdown; params: ServerShutdownParams }
 
 export type RpcResponse = { jsonrpc: '2.0'; id: number | string | null; result: unknown } |
@@ -237,6 +246,10 @@ export function isReviewStateParams(value: unknown): value is ReviewStateParams 
   return isDict(value) && isStr(value.requestId) && isStr(value.state)
 }
 
+export function isReviewModeParams(value: unknown): value is ReviewModeParams {
+  return isDict(value) && isBool(value.bypass)
+}
+
 export function isServerNotification(value: unknown): value is ServerNotification {
   if (!isDict(value) || value.jsonrpc !== '2.0' || !isStr(value.method)) return false
   switch (value.method) {
@@ -246,6 +259,8 @@ export function isServerNotification(value: unknown): value is ServerNotificatio
       return isReviewCancelParams(value.params)
     case METHODS.reviewState:
       return isReviewStateParams(value.params)
+    case METHODS.reviewMode:
+      return isReviewModeParams(value.params)
     case METHODS.serverShutdown:
       return isDict(value.params)
     default:

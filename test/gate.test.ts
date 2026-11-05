@@ -4,6 +4,7 @@ import { mkdtemp, writeFile, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { installGate } from '../packages/dsh-plugin/src/gate.ts'
+import { createBypassRegistry } from '../packages/dsh-plugin/src/bypass.ts'
 import { createKillSwitch } from '../packages/dsh-plugin/src/kill-switch.ts'
 import { checkHostCapabilities } from '../packages/dsh-plugin/src/index.ts'
 import { normalizeConfig } from '../packages/dsh-plugin/src/config.ts'
@@ -62,7 +63,7 @@ test('kill switch active bypasses every tool', async () => {
   await writeFile(join(dir, 'DISABLED'), '', 'utf8')
   const killSwitch = createKillSwitch(dir, 0)
   const ctx = makeCtx()
-  installGate({ ctx, config: normalizeConfig({}), coordinator: coordinatorReturning({ passthrough: true }), killSwitch })
+  installGate({ ctx, config: normalizeConfig({}), coordinator: coordinatorReturning({ passthrough: true }), killSwitch, bypass: createBypassRegistry() })
   assert.equal(killSwitch.active(), true)
   const result = await ctx.fire(execFor('write'), passNext)
   assert.deepEqual(result, { isError: false, value: 'passthrough' })
@@ -86,6 +87,7 @@ test('reviewed tool goes through the coordinator and never calls next', async ()
     config: normalizeConfig({}),
     coordinator: coordinatorReturning(expected),
     killSwitch: createKillSwitch('/nonexistent-state-dir', 0),
+    bypass: createBypassRegistry(),
   })
   const result = await ctx.fire(execFor('write'), async () => {
     nextCalls += 1
@@ -106,6 +108,7 @@ test('a coordinator bug fails closed for the reviewed call only', async () => {
       },
     } as unknown as ReviewCoordinator,
     killSwitch: createKillSwitch('/nonexistent-state-dir', 0),
+    bypass: createBypassRegistry(),
   })
   const result = (await ctx.fire(execFor('write'), passNext)) as ToolExecutionResultView
   assert.equal(result.isError, true)
@@ -119,6 +122,7 @@ test('non-reviewed tools pass through untouched', async () => {
     config: normalizeConfig({}),
     coordinator: coordinatorReturning({ passthrough: true }),
     killSwitch: createKillSwitch('/nonexistent-state-dir', 0),
+    bypass: createBypassRegistry(),
   })
   let nextCalls = 0
   await ctx.fire(execFor('bash'), async () => {
@@ -137,6 +141,7 @@ test('a broken tool registry cannot lock out non-review tools', async () => {
     config: normalizeConfig({}),
     coordinator: coordinatorReturning({ passthrough: true }),
     killSwitch: createKillSwitch('/nonexistent-state-dir', 0),
+    bypass: createBypassRegistry(),
   })
   let bashCalls = 0
   await ctx.fire(execFor('bash'), async () => {
@@ -153,6 +158,7 @@ test('mutating-looking unknown tools are denied by default', async () => {
     config: normalizeConfig({}),
     coordinator: coordinatorReturning({ passthrough: true }),
     killSwitch: createKillSwitch('/nonexistent-state-dir', 0),
+    bypass: createBypassRegistry(),
   })
   const result = (await ctx.fire(execFor('delete_file'), passNext)) as ToolExecutionResultView
   assert.equal(result.isError, true)
