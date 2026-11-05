@@ -22,7 +22,7 @@
 | **活动栏 Pre-edit Review** | Pending Reviews（行内 ✓/✗）、Review History |
 | **命令面板** | `Pre-edit Review: Show Pending Reviews` 等 |
 
-> 通知气泡只是提示，会消失；**正式决策入口是标题栏与队列视图**（不要依赖通知中心）。
+> **决策入口是标题栏 ✓/✗ 与队列视图**；插件不再用 VS Code 原生通知气泡（其停留时间由 VS Code 固定控制、扩展无法修改）。
 
 ## 3. 多文件
 
@@ -48,13 +48,23 @@
 - 如果你改过提案，插件会在工具结果后追加提示，要求模型重新读取文件后再继续；
 - 严格模式下模型不会因为 `read-only` 提示而拒绝尝试编辑（提示词已引导）。
 
-## 6. 历史与审计
+## 6. 提示消息（为什么不再弹右下角通知）
+
+- VS Code 没有"通知停留 5 秒"的公开 API 或设置（只有 `workbench.notifications.position` / `showInTitleBar`），扩展无法控制原生 toast 的存活时间。
+- 因此插件的**所有临时消息**（提交成功、拒绝、冲突、超时、连接变化、操作失败等）改为**右下角状态栏消息**，显示 **5 秒**后自动消失：
+  - 配置 `dpr.messageDurationMs`（1000–30000，默认 5000）可调；
+  - 颜色：信息=普通、警告=黄、错误=红；完整内容也写入输出面板；
+  - 若你更希望用原生通知：`dpr.useNativeNotifications = true`（停留时间回归 VS Code 控制）。
+- **需要你操作的对话框不受影响**：Accept All 确认、清空历史确认、拒绝理由输入框都是模态/输入框，不会自动消失。
+- Pending/History 视图在为空时用 `viewsWelcome` 常驻说明（新用户不会因为 5 秒太短而错过入口）。
+
+## 7. 历史与审计
 
 - **Review History**：最近 50 条决策（committed/rejected/conflict/expired/cancelled/failed、是否被用户编辑），点击可查看详情；"Clear History" 可清空（二次确认）。
 - **`/review history [n]`**：Host 侧审计（跨月 JSONL，默认 10 条），只含路径/事件/哈希，不含文件内容。
 - 审计文件：`~/.dsh/pre-edit-review/audit/YYYY-MM.jsonl`（0600）。
 
-## 7. 常见操作
+## 8. 常见操作
 
 ```text
 /review status            # 开关状态、客户端连接、pending 数、文件策略、是否暂停
@@ -65,6 +75,6 @@
 /review history 20        # 最近 20 条审批记录
 ```
 
-## 8. 故障排查
+## 9. 故障排查
 
 见 [troubleshooting.md](troubleshooting.md)。

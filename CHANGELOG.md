@@ -2,6 +2,15 @@
 
 All notable changes to **DeepSeek Pre-edit Review** (DSH Host plugin + VS Code extension).
 
+## [Extension 0.2.2] — 2026-11-05 (message UX)
+
+### Changed
+- **All transient plugin messages now appear in the bottom-right status bar for exactly 5 s** (`dpr.messageDurationMs`, 1000–30000, default 5000) instead of VS Code native notification toasts, whose lifetime is fixed by VS Code and cannot be changed by an extension.
+- Warning/error messages use yellow/red status-bar backgrounds; every message is also appended to the **DeepSeek Pre-edit Review** output channel.
+- `dpr.useNativeNotifications` (default false) restores native notifications if preferred.
+- Empty Pending/History views now show persistent `viewsWelcome` guidance, so the 5 s hint is no longer the only way to learn the ✓/✗ entry points.
+- Interactive dialogs (Accept All confirmation, Clear History confirmation, reject-reason input) are unchanged and never auto-dismiss.
+
 ## [Extension 0.2.1 / Plugin 0.2.0] — 2026-11-05 (Phase 4)
 
 ### Added

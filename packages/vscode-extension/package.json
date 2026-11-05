@@ -3,7 +3,7 @@
   "displayName": "DeepSeek Pre-edit Review",
   "description": "Review and edit agent-proposed file changes in an editable VS Code diff before anything is written to disk.",
   "publisher": "The-4leepy",
-  "version": "0.2.4",
+  "version": "0.2.2",
   "private": true,
   "engines": {
     "vscode": "^1.145.0"
@@ -199,9 +199,31 @@
           "type": "boolean",
           "default": false,
           "description": "%config.autoAccept%"
+        },
+        "dpr.messageDurationMs": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 1000,
+          "maximum": 30000,
+          "description": "%config.messageDurationMs%"
+        },
+        "dpr.useNativeNotifications": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.useNativeNotifications%"
         }
       }
-    }
+    },
+    "viewsWelcome": [
+      {
+        "view": "dpr.pendingView",
+        "contents": "%welcome.pending%"
+      },
+      {
+        "view": "dpr.historyView",
+        "contents": "%welcome.history%"
+      }
+    ]
   },
   "scripts": {
     "build": "node build.mjs",

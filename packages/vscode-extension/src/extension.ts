@@ -34,7 +34,7 @@ import {
   type HistoryReviewTreeItem,
   type PendingReviewTreeItem,
 } from './tree-views.ts'
-import { describeError, expandHome, isRecord } from './util.ts'
+import { clampMessageDuration, describeError, expandHome, isRecord } from './util.ts'
 
 const SETTINGS_SECTION = 'dpr'
 const AUTO_SELF_TEST_DELAY_MS = 2000
@@ -46,6 +46,8 @@ let mainSession: ReviewSession | undefined
 let selfTestSession: ReviewSession | undefined
 let statusBar: vscode.StatusBarItem | undefined
 let autoAcceptBar: vscode.StatusBarItem | undefined
+let flashBar: vscode.StatusBarItem | undefined
+let flashTimer: NodeJS.Timeout | undefined
 let output: vscode.OutputChannel | undefined
 let history: ReviewHistoryStore | undefined
 let pendingProvider: PendingReviewsProvider | undefined
@@ -201,6 +203,7 @@ function createSession(stateDir: string): ReviewSession {
     onStateChanged: (): void => onSessionStateChanged(),
     onSettled: (record): void => onDecisionSettled(record),
     onConnectionChanged: (info): void => handleConnectionChanged(info),
+    onTransientMessage: (message, severity): void => presentTransient(message, severity),
     onLog: (message): void => log(message),
   })
 }
@@ -250,11 +253,11 @@ function handleConnectionChanged(info: IpcConnectionInfo): void {
   } else if (info.authFailed === true) {
     if (!authWarned) {
       authWarned = true
-      void vscode.window.showErrorMessage(messages.authFailedError(info.error ?? 'invalid token'))
+      presentTransient(messages.authFailedError(info.error ?? 'invalid token'), 'error')
     }
   } else if (!offlineWarned) {
     offlineWarned = true
-    void vscode.window.showWarningMessage(messages.offlineWarning)
+    presentTransient(messages.offlineWarning, 'warning')
   }
   updateStatusBar()
 }
@@ -300,6 +303,47 @@ function updatePendingBadge(): void {
   const pending = mainSession?.pendingCount ?? 0
   pendingTreeView.badge =
     pending > 0 ? { value: pending, tooltip: messages.pendingBadgeTooltip(pending) } : undefined
+}
+
+type TransientSeverity = 'info' | 'warning' | 'error'
+
+/**
+ * Show one transient plugin message for `dpr.messageDurationMs` in the status
+ * bar, or fall back to a native VS Code notification when the user asks for it.
+ */
+function presentTransient(message: string, severity: TransientSeverity = 'info'): void {
+  log(`[${severity}] ${message}`)
+  const config = currentConfig()
+  if (config.get<boolean>('useNativeNotifications', false) === true) {
+    switch (severity) {
+      case 'error':
+        void vscode.window.showErrorMessage(message)
+        return
+      case 'warning':
+        void vscode.window.showWarningMessage(message)
+        return
+      default:
+        void vscode.window.showInformationMessage(message)
+        return
+    }
+  }
+  if (flashBar === undefined) return
+  const duration = clampMessageDuration(config.get<number>('messageDurationMs', 5000))
+  const icon = severity === 'error' ? '$(error)' : severity === 'warning' ? '$(warning)' : '$(info)'
+  flashBar.text = `${icon} ${message}`
+  flashBar.tooltip = message
+  flashBar.backgroundColor =
+    severity === 'error'
+      ? new vscode.ThemeColor('statusBarItem.errorBackground')
+      : severity === 'warning'
+        ? new vscode.ThemeColor('statusBarItem.warningBackground')
+        : undefined
+  flashBar.show()
+  if (flashTimer !== undefined) clearTimeout(flashTimer)
+  flashTimer = setTimeout(() => {
+    flashBar?.hide()
+    flashTimer = undefined
+  }, duration)
 }
 
 function updateStatusBar(): void {
@@ -392,26 +436,26 @@ function commandSession(arg: unknown): ReviewSession | undefined {
 function acceptCommand(arg?: unknown): Promise<void> {
   const session = commandSession(arg)
   if (session === undefined) {
-    void vscode.window.showInformationMessage(messages.notConnected)
+    presentTransient(messages.notConnected)
     return Promise.resolve()
   }
   log(`dpr.accept requestId=${requestIdFromArg(arg) ?? '(active)'}`)
   return session.accept(normalizeArg(arg)).catch((error: unknown) => {
     log(`dpr.accept failed: ${describeError(error)}`)
-    void vscode.window.showWarningMessage(describeError(error))
+    presentTransient(describeError(error), 'warning')
   })
 }
 
 function rejectCommand(arg?: unknown): Promise<void> {
   const session = commandSession(arg)
   if (session === undefined) {
-    void vscode.window.showInformationMessage(messages.notConnected)
+    presentTransient(messages.notConnected)
     return Promise.resolve()
   }
   log(`dpr.reject requestId=${requestIdFromArg(arg) ?? '(active)'}`)
   return session.reject(normalizeArg(arg)).catch((error: unknown) => {
     log(`dpr.reject failed: ${describeError(error)}`)
-    void vscode.window.showWarningMessage(describeError(error))
+    presentTransient(describeError(error), 'warning')
   })
 }
 
@@ -419,18 +463,18 @@ function rejectCommand(arg?: unknown): Promise<void> {
 function openItemCommand(arg?: unknown): Promise<void> {
   const session = commandSession(arg)
   if (session === undefined) {
-    void vscode.window.showInformationMessage(messages.notConnected)
+    presentTransient(messages.notConnected)
     return Promise.resolve()
   }
   const requestId = requestIdFromArg(arg)
   if (requestId === undefined) {
-    void vscode.window.showInformationMessage(messages.noPendingReview)
+    presentTransient(messages.noPendingReview)
     return Promise.resolve()
   }
   log(`dpr.openItem requestId=${requestId}`)
   return session.openReview(requestId).catch((error: unknown) => {
     log(`dpr.openItem failed: ${describeError(error)}`)
-    void vscode.window.showWarningMessage(describeError(error))
+    presentTransient(describeError(error), 'warning')
   })
 }
 
@@ -438,13 +482,13 @@ function openItemCommand(arg?: unknown): Promise<void> {
 function rejectAllCommand(): Promise<void> {
   const session = commandSession(undefined)
   if (session === undefined) {
-    void vscode.window.showInformationMessage(messages.notConnected)
+    presentTransient(messages.notConnected)
     return Promise.resolve()
   }
   log(`dpr.rejectAll pending=${session.pendingCount}`)
   return session.rejectAll().catch((error: unknown) => {
     log(`dpr.rejectAll failed: ${describeError(error)}`)
-    void vscode.window.showWarningMessage(describeError(error))
+    presentTransient(describeError(error), 'warning')
   })
 }
 
@@ -465,10 +509,10 @@ async function clearHistoryCommand(): Promise<void> {
   try {
     await store.clear()
     log('review history cleared')
-    void vscode.window.showInformationMessage(messages.clearHistoryDone)
+    presentTransient(messages.clearHistoryDone)
   } catch (error) {
     log(`could not clear review history: ${describeError(error)}`)
-    void vscode.window.showWarningMessage(describeError(error))
+    presentTransient(describeError(error), 'warning')
   }
 }
 
@@ -488,12 +532,12 @@ async function revealCommand(command: string): Promise<void> {
 
 function withMainSession(action: (session: ReviewSession) => Promise<void>): Promise<void> {
   if (mainSession === undefined) {
-    void vscode.window.showInformationMessage(messages.notConnected)
+    presentTransient(messages.notConnected)
     return Promise.resolve()
   }
   return action(mainSession).catch((error: unknown) => {
     log(`command failed: ${describeError(error)}`)
-    void vscode.window.showWarningMessage(describeError(error))
+    presentTransient(describeError(error), 'warning')
   })
 }
 
@@ -502,13 +546,13 @@ function reconnectCommand(): void {
     if (currentConfig().get<boolean>('autoConnect', true)) {
       startMainSession()
     } else {
-      void vscode.window.showInformationMessage(messages.notConnected)
+      presentTransient(messages.notConnected)
     }
     return
   }
   log('manual reconnect requested')
   mainSession.reconnect()
-  void vscode.window.showInformationMessage(messages.reconnectRequested)
+  presentTransient(messages.reconnectRequested)
 }
 
 // ---------------------------------------------------------------------------

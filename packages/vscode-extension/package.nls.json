@@ -15,5 +15,9 @@
   "command.runSelfTest": "Pre-edit Review: Run Self-test",
   "config.stateDir": "Directory that contains the Host plugin's Unix socket (ipc.sock) and authentication token (token). Must match the Host plugin's stateDir.",
   "config.autoConnect": "Connect to the Host plugin automatically when VS Code starts.",
-  "config.autoAccept": "Allow the dpr.acceptAll command to arm a 5-minute auto-accept window. When enabled, changes arriving while armed are committed without asking."
+  "config.autoAccept": "Allow the dpr.acceptAll command to arm a 5-minute auto-accept window. When enabled, changes arriving while armed are committed without asking.",
+  "config.messageDurationMs": "How long transient DeepSeek Pre-edit Review messages stay in the status bar (1000-30000 ms). The default is 5000 ms. VS Code native notifications have a fixed lifetime that extensions cannot change; set dpr.useNativeNotifications to use them instead.",
+  "config.useNativeNotifications": "Show transient review messages as native VS Code notifications instead of the 5-second status-bar message. Native notification lifetime is controlled by VS Code, not by this extension.",
+  "welcome.pending": "No pending reviews.\n\nWhen an agent proposes a change, an editable diff opens. Use the \u2713 / \u2717 buttons in the editor title bar (or Ctrl+Alt+Enter / Ctrl+Alt+Backspace) to accept or reject.",
+  "welcome.history": "No decisions yet.\n\nAccept and reject decisions made in this workspace appear here, newest first."
 }

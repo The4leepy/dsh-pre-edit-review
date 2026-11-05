@@ -35,3 +35,12 @@ export function describeError(error: unknown): string {
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
+
+/** Default lifetime of a transient status-bar message. */
+export const DEFAULT_MESSAGE_DURATION_MS = 5000
+
+/** Clamp a user-configured status-bar message duration to 1s..30s. */
+export function clampMessageDuration(value: unknown, fallback = DEFAULT_MESSAGE_DURATION_MS): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return Math.min(30_000, Math.max(1_000, Math.round(value)))
+}

@@ -54,6 +54,8 @@ export interface ReviewSessionOptions {
   /** Called once per settled decision so the extension can append history. */
   onSettled?(record: SettledReview): void
   onConnectionChanged?(info: IpcConnectionInfo): void
+  /** Route transient messages to the host UI (status-bar flash) instead of native toasts. */
+  onTransientMessage?(message: string, severity: 'info' | 'warning' | 'error'): void
   onLog?(message: string): void
 }
 
@@ -847,10 +849,18 @@ export class ReviewSession {
 
   private showInfo(message: string): void {
     if (this.options.quiet === true) return
+    if (this.options.onTransientMessage !== undefined) {
+      this.options.onTransientMessage(message, 'info')
+      return
+    }
     void vscode.window.showInformationMessage(message)
   }
 
   private showWarning(message: string): void {
+    if (this.options.onTransientMessage !== undefined) {
+      this.options.onTransientMessage(message, 'warning')
+      return
+    }
     void vscode.window.showWarningMessage(message)
   }
 

@@ -71,6 +71,12 @@ ls -la ~/.dsh/pre-edit-review/       # 应有 ipc.sock + token（0600）
 - 状态栏出现 `· 已关闭` 即表示有会话暂停了审批；输入 `/review on` 恢复。
 - 暂停是内存态，Host 重启自动复位；`allowPause:false` 可整体禁用该命令。
 
+## G2. 5 秒提示没看清 / 想改回弹窗
+
+- 临时消息在右下角状态栏显示 **5 秒**（`dpr.messageDurationMs` 可调 1–30 秒），内容同时写入输出面板 → **DeepSeek Pre-edit Review**。
+- 想用原生通知：设置 `dpr.useNativeNotifications = true`；但 VS Code 原生通知的停留时间扩展无法控制（约 10 秒，且无法设为 5 秒）。
+- 需要用户操作的确认框（Accept All / 清空历史）不受此设置影响。
+
 ## H. Pending/History 视图不见了
 
 - 视图在活动栏的 **Pre-edit Review** 图标内；若被隐藏：命令面板 `View: Show Pre-edit Review`。
