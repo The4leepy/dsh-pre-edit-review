@@ -1,5 +1,10 @@
 node_modules/
+# Build artifacts are ignored, except the DSH plugin bundle: it must be
+# committed so plugin-market *git* sources are installable.
 dist/
+!packages/dsh-plugin/dist/
+!packages/dsh-plugin/dist/index.mjs
+*.map
 *.vsix
 .spike/
 *.tsbuildinfo
