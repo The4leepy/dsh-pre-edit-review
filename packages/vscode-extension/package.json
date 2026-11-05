@@ -3,7 +3,7 @@
   "displayName": "DeepSeek Pre-edit Review",
   "description": "Review and edit agent-proposed file changes in an editable VS Code diff before anything is written to disk.",
   "publisher": "The-4leepy",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "engines": {
     "vscode": "^1.145.0"

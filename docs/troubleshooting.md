@@ -63,13 +63,13 @@ ls -la ~/.dsh/pre-edit-review/       # 应有 ipc.sock + token（0600）
 ## F. 严格模式（read-only）下构建/测试/安装失败
 
 - 这是严格模式的预期代价：OS 沙箱禁止一切写入（含缓存、node_modules）。
-- 需要构建时切换：`/review balanced`（workspace-write）或临时放行 `/review bypass`；
+- 需要构建时切换：`/review balanced`（workspace-write），或临时 `/review off` 暂停本会话审批；
 - 只读模式下仍可正常读取、运行只读命令与代码审查。
 
-## G. 放行模式忘记关闭
+## G. 暂停审批忘记恢复
 
-- 状态栏出现 `· 放行` 即表示有会话处于放行；输入 `/review bypass off` 关闭。
-- 放行是内存态，Host 重启自动复位；`allowBypass:false` 可整体禁用该命令。
+- 状态栏出现 `· 已关闭` 即表示有会话暂停了审批；输入 `/review on` 恢复。
+- 暂停是内存态，Host 重启自动复位；`allowPause:false` 可整体禁用该命令。
 
 ## H. Pending/History 视图不见了
 

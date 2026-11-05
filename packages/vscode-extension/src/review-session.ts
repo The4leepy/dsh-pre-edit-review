@@ -9,7 +9,7 @@
 
 import * as vscode from 'vscode'
 
-import { METHODS, RPC_ERRORS } from '../../shared/src/protocol.ts'
+import { METHODS, RPC_ERRORS, reviewPaused } from '../../shared/src/protocol.ts'
 import type {
   DecisionParams,
   DecisionResult,
@@ -115,7 +115,7 @@ export class ReviewSession {
   private readonly awaitingOutcome = new Map<string, AwaitingOutcome>()
   private autoAcceptTimer: NodeJS.Timeout | undefined
   private autoAcceptUntil: number | undefined
-  private bypassActiveState = false
+  private reviewPausedState = false
   private disposed = false
   /** One onboarding hint per VS Code session; decisions live on the title bar. */
   private firstHintShown = false
@@ -176,9 +176,9 @@ export class ReviewSession {
     return this.autoAcceptTimer !== undefined
   }
 
-  /** True when the Host reported that a session runs with review bypassed. */
-  get bypassActive(): boolean {
-    return this.bypassActiveState
+  /** True when the Host reported that review is paused for some live session. */
+  get reviewPaused(): boolean {
+    return this.reviewPausedState
   }
 
   get autoAcceptDeadline(): number | undefined {
@@ -396,9 +396,10 @@ export class ReviewSession {
   }
 
   private onReviewMode(params: ReviewModeParams): void {
-    if (this.bypassActiveState === params.bypass) return
-    this.bypassActiveState = params.bypass
-    this.log(`review bypass ${params.bypass ? 'enabled' : 'disabled'} by the Host`)
+    const paused = reviewPaused(params)
+    if (this.reviewPausedState === paused) return
+    this.reviewPausedState = paused
+    this.log(`review ${paused ? 'paused' : 'resumed'} by the Host`)
     this.notifyStateChanged()
   }
 
@@ -540,7 +541,7 @@ export class ReviewSession {
   // -- connection ---------------------------------------------------------
 
   private onConnectionChanged(info: IpcConnectionInfo): void {
-    if (info.bypass !== undefined) this.bypassActiveState = info.bypass
+    if (info.paused !== undefined) this.reviewPausedState = info.paused
     if (!info.connected) {
       this.disarmAutoAccept('disconnect')
       const discarded = this.clearPending()

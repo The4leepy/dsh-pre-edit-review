@@ -31,9 +31,9 @@ export interface Messages {
   pendingSuffix(count: number): string
   readonly autoAcceptStatus: string
   autoAcceptTooltip(until: Date): string
-  /** Appended to the status bar while the Host reports review bypass. */
-  readonly bypassSuffix: string
-  readonly bypassTooltip: string
+  /** Appended to the status bar while the Host reports review paused (`/review off`). */
+  readonly pausedSuffix: string
+  readonly pausedTooltip: string
 
   // UI actions
   readonly accept: string
@@ -128,8 +128,8 @@ const en: Messages = {
   pendingSuffix: (count) => ` (${count} pending)`,
   autoAcceptStatus: 'AUTO-ACCEPT',
   autoAcceptTooltip: (until) => `Auto-accept armed until ${until.toLocaleTimeString()} — click to disarm.`,
-  bypassSuffix: ' · bypass',
-  bypassTooltip: 'Review bypass (放行模式) is ON for a session on this Host: its writes are NOT reviewed. Use /review bypass off to restore review.',
+  pausedSuffix: ' · OFF',
+  pausedTooltip: 'Review is paused for a session on this Host: its writes are NOT reviewed. Use /review on to restore review.',
   accept: 'Accept',
   reject: 'Reject',
   firstReviewHint:
@@ -206,8 +206,8 @@ const zhCN: Messages = {
   pendingSuffix: (count) => ` (${count} 待审批)`,
   autoAcceptStatus: 'AUTO-ACCEPT',
   autoAcceptTooltip: (until) => `自动接受已启用，截止 ${until.toLocaleTimeString()} — 点击关闭。`,
-  bypassSuffix: ' · 放行',
-  bypassTooltip: '放行模式（review bypass）已开启：该会话的写操作不再经过审批。输入 /review bypass off 可恢复审批。',
+  pausedSuffix: ' · 已关闭',
+  pausedTooltip: '本 Host 上有会话已暂停审批：其写操作不再经过审批。输入 /review on 可恢复审批。',
   accept: '接受',
   reject: '拒绝',
   firstReviewHint:

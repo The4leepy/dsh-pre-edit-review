@@ -22,12 +22,12 @@
 | Host 插件（dsh-pre-edit-review） | 可信 | 运行在 DSH Host 进程内，拥有进程权限；只有它调用 `CommitTarget.commit` |
 | CommitTarget | 可信 | 唯一被允许写用户工作区的模块 |
 | VS Code 扩展 | 半可信 | 只能提交对既有 requestId 的 decision；不能要求写任意文件 |
-| 用户 | 唯一授权来源 | Accept/Reject、`/review bypass`、kill switch |
+| 用户 | 唯一授权来源 | Accept/Reject、`/review off`（本会话暂停审批）、kill switch |
 | Agent / 工具 / 子进程 | 不可信 | 受 gate + 沙箱约束 |
 
 ## 3. 保证矩阵
 
-| 能力 | 工具级模式（默认） | 严格模式（会话 `read-only`） | 放行模式（用户开启） |
+| 能力 | 工具级模式（默认） | 严格模式（会话 `read-only`） | 暂停审批（用户开启） |
 |---|---|---|---|
 | `write`/`edit`/`str_replace_editor` 先审批后写 | ✅ | ✅ | ❌（直接写） |
 | 未审批绝不写原文件 | ✅ | ✅ | ❌ |
@@ -38,7 +38,7 @@
 | 重复/伪造决策 | ✅ 拒绝 | ✅ 拒绝 | — |
 | 崩溃恢复不重放提交 | ✅ | ✅ | — |
 
-**结论：只有严格模式宣称"审批前不可写"；工具级模式是便捷模式，不宣称安全保证；放行模式是用户明确承担风险的直写模式。**
+**结论：只有严格模式宣称"审批前不可写"；工具级模式是便捷模式，不宣称安全保证；暂停审批是用户明确承担风险的直写模式。**
 
 ## 4. 关键机制
 
@@ -73,12 +73,12 @@
   - 终态记录不动。
 - 审计 JSONL 只记录路径、事件、哈希、决策来源，不含文件内容。
 
-### 4.5 放行模式（review bypass）
+### 4.5 暂停审批（`/review off`）
 
-- 只能由**用户在会话命令**里开启（`/review bypass`）；Agent 的工具、IPC、配置都无法打开。
+- 只能由**用户在会话命令**里开启（`/review off`）；Agent 的工具、IPC、配置都无法打开。
 - 会话级、内存态（Host 重启复位）、`allowBypass:false` 可整体禁用、每次切换写审计。
-- 只跳过审批，不改沙箱：`read-only` 下即使放行也写不了文件。
-- 状态栏显示 `· 放行`，不会静默生效。
+- 只跳过审批，不改沙箱：`read-only` 下即使暂停审批也写不了文件。
+- 状态栏显示 `· 已关闭`，不会静默生效。
 
 ### 4.6 急停开关
 
@@ -103,5 +103,5 @@
 | `str_replace_editor` E2E（create/str_replace/insert/直通） | `docs/evidence/m3/` |
 | 严格模式：4 种 shell 绕过 + fs 沙箱 + 受控提交闭环 | `docs/evidence/m4/strict-mode-evidence.json` |
 | 崩溃恢复演练（seeded state） | `docs/evidence/m4/crash-drill.json` |
-| 单元/集成测试（86 个，含 IPC 鉴权/伪造/超限、恢复、bypass） | `test/` |
+| 单元/集成测试（86 个，含 IPC 鉴权/伪造/超限、恢复、暂停审批） | `test/` |
 | VS Code 扩展自检（27 步） | `docs/evidence/ext-selftest.json` |

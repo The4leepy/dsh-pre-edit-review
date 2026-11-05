@@ -53,7 +53,7 @@ export interface IpcServerOptions {
   handleDecision: DecisionHandler
   onClientChanged?(connected: boolean): void
   onAutoAccept?(): void
-  /** Whether any live session currently bypasses review (放行模式). */
+  /** Whether any live session currently has review paused (`/review off`). */
   mode?(): boolean
   now?: () => number
 }
@@ -275,7 +275,7 @@ export class IpcServer {
         ok: true,
         serverVersion: this.options.serverVersion,
         stateDir: this.options.stateDir,
-        bypass: this.options.mode?.() === true,
+        paused: this.options.mode?.() === true,
       })
       return
     }
@@ -385,7 +385,7 @@ export class IpcServer {
     })
   }
 
-  /** Push the current review-bypass state to the client. */
+  /** Push the current review-paused state to the client. */
   notifyMode(params: ReviewModeParams): void {
     if (!this.connected) return
     this.send({ jsonrpc: '2.0', method: METHODS.reviewMode, params })

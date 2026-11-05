@@ -18,6 +18,8 @@ export interface RawPluginConfig {
   socketPath?: string
   clientConnectTimeoutMs?: number
   noticeOnUserEdit?: boolean
+  allowPause?: boolean
+  /** @deprecated legacy name for allowPause. */
   allowBypass?: boolean
   auditRetentionDays?: number
 }
@@ -38,7 +40,7 @@ export interface PluginConfig {
   socketPath: string
   clientConnectTimeoutMs: number
   noticeOnUserEdit: boolean
-  allowBypass: boolean
+  allowPause: boolean
   auditRetentionDays: number
 }
 
@@ -108,7 +110,7 @@ export function normalizeConfig(raw: unknown): PluginConfig {
     socketPath,
     clientConnectTimeoutMs: positiveInt(input.clientConnectTimeoutMs, 'clientConnectTimeoutMs', 3_000, 100),
     noticeOnUserEdit: input.noticeOnUserEdit ?? true,
-    allowBypass: input.allowBypass ?? true,
+    allowPause: input.allowPause ?? input.allowBypass ?? true,
     auditRetentionDays: positiveInt(input.auditRetentionDays, 'auditRetentionDays', 30, 1),
   }
 }

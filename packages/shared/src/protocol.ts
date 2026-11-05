@@ -47,7 +47,9 @@ export interface HelloResult {
   ok: true
   serverVersion: string
   stateDir: string
-  /** True when at least one live session currently runs with review bypassed. */
+  /** True when at least one live session currently has review paused (`/review off`). */
+  paused?: boolean
+  /** @deprecated legacy field from 0.2.x; `true` means paused. */
   bypass?: boolean
 }
 
@@ -121,9 +123,17 @@ export interface ReviewStateParams {
   detail?: string
 }
 
-/** Review bypass (放行模式) changed: skip the pre-edit review for the session. */
+/** Review pause state changed: the session skips the pre-edit review (`/review off`). */
 export interface ReviewModeParams {
-  bypass: boolean
+  /** Review is paused for the session that toggled `/review off`. */
+  paused?: boolean
+  /** @deprecated legacy field from 0.2.x; `true` means paused. */
+  bypass?: boolean
+}
+
+/** Whether a `review/mode` payload means "review paused". */
+export function reviewPaused(params: ReviewModeParams): boolean {
+  return params.paused === true || params.bypass === true
 }
 
 export interface ServerShutdownParams {
@@ -247,7 +257,7 @@ export function isReviewStateParams(value: unknown): value is ReviewStateParams 
 }
 
 export function isReviewModeParams(value: unknown): value is ReviewModeParams {
-  return isDict(value) && isBool(value.bypass)
+  return isDict(value) && (isBool(value.paused) || isBool(value.bypass))
 }
 
 export function isServerNotification(value: unknown): value is ServerNotification {

@@ -6,7 +6,7 @@
  * awaited by the first review and exposed as `ready`.
  */
 import type { LoggerView, HostContext } from './host.ts'
-import { createBypassRegistry, type BypassRegistry } from './bypass.ts'
+import { createPauseRegistry, type PauseRegistry } from './pause.ts'
 import { IpcServer } from './ipc/server.ts'
 import { reconcileStaging } from './recovery.ts'
 import { ReviewCoordinator } from './review-coordinator.ts'
@@ -14,21 +14,21 @@ import { StagingStore } from './staging/store.ts'
 import { createCommitTarget, createCommitTargetHost } from './targets/index.ts'
 import type { PluginConfig } from './config.ts'
 
-export const PLUGIN_VERSION = '0.1.0'
+export const PLUGIN_VERSION = '0.2.1'
 
 export interface PluginRuntime {
   config: PluginConfig
   store: StagingStore
   ipc: IpcServer
   coordinator: ReviewCoordinator
-  bypass: BypassRegistry
+  pause: PauseRegistry
   ready: Promise<void>
   dispose(): Promise<void>
 }
 
 export function createRuntime(ctx: HostContext, config: PluginConfig, logger: LoggerView): PluginRuntime {
   const store = new StagingStore({ dir: config.stateDir })
-  const bypass = createBypassRegistry()
+  const pause = createPauseRegistry()
   let coordinatorRef: ReviewCoordinator | undefined
 
   const ipc = new IpcServer({
@@ -43,9 +43,9 @@ export function createRuntime(ctx: HostContext, config: PluginConfig, logger: Lo
     },
     onClientChanged: (connected) => {
       logger.info(`[pre-edit-review] review client ${connected ? 'connected' : 'disconnected'}`)
-      if (connected) ipc.notifyMode({ bypass: bypass.anyActive() })
+      if (connected) ipc.notifyMode({ paused: pause.anyPaused() })
     },
-    mode: () => bypass.anyActive(),
+    mode: () => pause.anyPaused(),
   })
 
   const target = createCommitTarget('direct-workspace')
@@ -93,7 +93,7 @@ export function createRuntime(ctx: HostContext, config: PluginConfig, logger: Lo
     store,
     ipc,
     coordinator,
-    bypass,
+    pause,
     ready,
     dispose: async () => {
       await ipc.stop()

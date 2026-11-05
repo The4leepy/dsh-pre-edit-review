@@ -307,20 +307,20 @@ function updateStatusBar(): void {
   const connected = mainSession?.connected === true
   const pending = mainSession?.pendingCount ?? 0
   const state = connected ? messages.statusConnected : messages.statusOffline
-  const bypass = mainSession?.bypassActive === true
-  const bypassSuffix = bypass ? messages.bypassSuffix : ''
+  const paused = mainSession?.reviewPaused === true
+  const pausedSuffix = paused ? messages.pausedSuffix : ''
   if (pending > 0) {
-    statusBar.text = `$(shield) ${messages.pendingStatus(pending)}${bypassSuffix}`
+    statusBar.text = `$(shield) ${messages.pendingStatus(pending)}${pausedSuffix}`
     statusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground')
   } else {
-    statusBar.text = `$(shield) Pre-edit Review: ${state}${bypassSuffix}`
+    statusBar.text = `$(shield) Pre-edit Review: ${state}${pausedSuffix}`
     statusBar.backgroundColor = undefined
   }
   const baseTooltip = messages.statusTooltip(
     mainSession?.stateDir ?? resolveStateDir(currentConfig().get<string>('stateDir')),
     clientVersion,
   )
-  statusBar.tooltip = bypass ? `${baseTooltip}\n${messages.bypassTooltip}` : baseTooltip
+  statusBar.tooltip = paused ? `${baseTooltip}\n${messages.pausedTooltip}` : baseTooltip
   statusBar.show()
 
   // Decisions live on the editor-title buttons; the status bar is a single

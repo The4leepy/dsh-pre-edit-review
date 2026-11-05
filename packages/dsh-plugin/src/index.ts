@@ -88,7 +88,7 @@ export function apply(ctx: HostContext, rawConfig: RawPluginConfig = {}): void {
 
   const killSwitch = createKillSwitch(config.stateDir)
   const disposers: Array<() => void> = []
-  disposers.push(installGate({ ctx, config, coordinator: runtime.coordinator, killSwitch, bypass: runtime.bypass }))
+  disposers.push(installGate({ ctx, config, coordinator: runtime.coordinator, killSwitch, pause: runtime.pause }))
   disposers.push(installPostExecuteNotice(ctx, runtime.coordinator))
   installCommands(ctx, runtime, logger)
   installPromptSection(ctx)
@@ -141,8 +141,8 @@ function installCommands(ctx: HostContext, runtime: PluginRuntime, logger: Logge
   ctx.inject(['commands'], (sub: any) => {
     sub.commands.register({
       name: 'review',
-      description: 'Pre-edit review status; switch it on/off or between strict and balanced file policy',
-      input: { hint: '[status|on|off|strict|balanced|bypass [on|off]|history [n]]' },
+      description: 'Pre-edit review status; pause/resume review or switch between strict and balanced file policy',
+      input: { hint: '[status|on|off|strict|balanced|history [n]]' },
       handler: async (invocation: any): Promise<CommandResultView> => {
         const raw = String(invocation?.rawInput ?? '').trim().toLowerCase()
         const config = runtime.config
@@ -166,46 +166,43 @@ function installCommands(ctx: HostContext, runtime: PluginRuntime, logger: Logge
           }
         }
 
-        if (raw === 'on') {
-          config.enabled = true
-          return { kind: 'success', text: 'Pre-edit review: ON' }
-        }
-        if (raw === 'off') {
-          config.enabled = false
-          return { kind: 'success', text: 'Pre-edit review: OFF (writes are no longer reviewed in this profile session)' }
-        }
-        if (raw === 'strict') return switchPreset('read-only')
-        if (raw === 'balanced') return switchPreset('workspace-write')
-        if (raw === 'bypass' || raw.startsWith('bypass ')) {
-          if (!config.allowBypass) {
-            return { kind: 'error', text: 'review bypass is disabled by configuration (allowBypass: false)' }
-          }
+        /** Resume or pause review for the requesting session. */
+        const setPaused = async (paused: boolean): Promise<CommandResultView> => {
           const session = agent?.session
           if (session === undefined) {
-            return { kind: 'error', text: 'review bypass needs an agent session' }
+            return { kind: 'error', text: 'review pause needs an agent session' }
           }
-          const arg = raw.slice('bypass'.length).trim().toLowerCase()
-          if (arg !== '' && arg !== 'on' && arg !== 'off') {
-            return { kind: 'error', text: 'use /review bypass [on|off]' }
+          if (paused && !config.allowPause) {
+            return { kind: 'error', text: 'review pause is disabled by configuration (allowPause: false)' }
           }
-          const enable = arg === 'on' ? true : arg === 'off' ? false : !runtime.bypass.isBypassed(session)
-          runtime.bypass.set(session, enable)
-          runtime.ipc.notifyMode({ bypass: runtime.bypass.anyActive() })
-          await runtime.store.audit({
-            event: enable ? 'review/bypass-on' : 'review/bypass-off',
-            sessionId: String((session as { id?: unknown }).id ?? 'unknown'),
-          })
+          const was = runtime.pause.isPaused(session)
+          runtime.pause.set(session, paused)
+          runtime.ipc.notifyMode({ paused: runtime.pause.anyPaused() })
+          if (was !== paused) {
+            await runtime.store.audit({
+              event: paused ? 'review/paused' : 'review/resumed',
+              sessionId: String((session as { id?: unknown }).id ?? 'unknown'),
+            })
+          }
+          if (paused) {
+            return {
+              kind: 'success',
+              text:
+                'Pre-edit review: OFF for this session — the agent writes files directly, without a review request. ' +
+                'The sandbox policy is unchanged (read-only still denies writes). Run /review on to restore review.\n' +
+                '已暂停本会话的修改前审阅：文件修改将直接执行、不再弹出审批；文件策略不变。输入 /review on 恢复审批。',
+            }
+          }
           return {
             kind: 'success',
-            text: enable
-              ? 'Bypass mode ON for this session: the agent writes files directly, without a review request. ' +
-                'The sandbox policy is unchanged (read-only still denies writes). ' +
-                'Run /review bypass off to restore review.\n' +
-                '放行模式已开启：本会话的文件修改直接执行、不再弹出审批；文件策略不变。输入 /review bypass off 恢复审批。'
-              : 'Bypass mode OFF for this session: file writes are reviewed again.\n' +
-                '放行模式已关闭：文件修改恢复审批。',
+            text: 'Pre-edit review: ON for this session — file writes are reviewed again.\n恢复本会话的修改前审阅：文件修改重新需要审批。',
           }
         }
+
+        if (raw === 'on') return await setPaused(false)
+        if (raw === 'off') return await setPaused(true)
+        if (raw === 'strict') return switchPreset('read-only')
+        if (raw === 'balanced') return switchPreset('workspace-write')
         if (raw === 'history' || raw.startsWith('history ')) {
           const requested = Number(raw.slice('history'.length).trim())
           const limit = Number.isInteger(requested) && requested > 0 ? Math.min(requested, 50) : 10
@@ -225,12 +222,12 @@ function installCommands(ctx: HostContext, runtime: PluginRuntime, logger: Logge
             sandboxMode = 'unknown'
           }
           const strict = sandboxMode === 'read-only'
-          const bypassOn = runtime.bypass.isBypassed(agent?.session)
+          const paused = runtime.pause.isPaused(agent?.session)
           const lines = [
             `Pre-edit review: ${config.enabled ? 'ON' : 'OFF'} (mode=${status.mode})`,
             `review client: ${status.connected ? 'connected' : 'NOT connected'}`,
             `pending reviews: ${status.pending}`,
-            `review bypass: ${bypassOn ? 'ON for this session — writes are NOT reviewed' : 'off (/review bypass to enable)'}`,
+            `review: ${paused ? 'PAUSED for this session — writes are NOT reviewed (/review on to resume)' : 'on (/review off to pause this session)'}`,
             `file policy: ${sandboxMode} ${
               strict ? '(strict: ALL writes require approval)' : '(tool-level: shell writes are NOT reviewed)'
             }`,
@@ -240,7 +237,7 @@ function installCommands(ctx: HostContext, runtime: PluginRuntime, logger: Logge
           if (!strict) lines.push('tip: /review strict switches this session to read-only, the only mode that cannot be bypassed.')
           return { kind: 'success', text: lines.join('\n') }
         }
-        return { kind: 'error', text: `unknown /review argument "${raw}" (use status|on|off|strict|balanced|bypass [on|off]|history [n])` }
+        return { kind: 'error', text: `unknown /review argument "${raw}" (use status|on|off|strict|balanced|history [n])` }
       },
     })
     logger.info('[pre-edit-review] /review command registered')

@@ -78,7 +78,7 @@ scripts/uninstall.sh --purge             # 连同 staging/audit/token/socket 一
 | 7 | 解除 kill switch，让 Agent 改一个文件 | VS Code 弹出可编辑 diff；Accept 后文件才变化 |
 | 8 | 再让 Agent 改一个文件并 Reject | 原文件不变，Agent 收到拒绝 |
 | 9 | `/review strict` 后让 Agent 用 bash 写文件 | 被 OS 沙箱拒绝（`Operation not permitted`） |
-| 10 | `/review bypass` 后让 Agent 直接改文件 | 不再弹审批；状态栏显示 `· 放行` |
+| 10 | `/review off` 后让 Agent 直接改文件 | 不再弹审批；状态栏显示 `· 已关闭`；`/review on` 恢复 |
 | 11 | 退出 VS Code 后让 Agent 改文件 | fail-closed，文件不变，错误提示打开 VS Code |
 | 12 | `scripts/uninstall.sh --purge` | 扩展与插件移除、状态目录清空、profile 无残留 |
 

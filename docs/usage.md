@@ -34,13 +34,13 @@
 |---|---|---|
 | 工具级（默认） | 默认 | 仅拦截工具写入；**bash/脚本可绕过**，状态栏无特殊标记 |
 | 严格模式 | 用户执行 `/review strict`（会话 `read-only`） | OS 沙箱拒绝一切写入；Agent 唯一写路径是审批提交。代价：构建/安装/测试会失败 |
-| 放行模式 | 用户执行 `/review bypass` | 该会话写操作直接执行、不弹审批；状态栏显示 `· 放行`；沙箱不变；Host 重启复位 |
+| 暂停审批 | 用户执行 `/review off` | **仅当前会话**：文件写入直接执行、不弹审批；状态栏显示 `· 已关闭`；沙箱不变；切换写入审计；Host 重启自动恢复审批。`/review on` 恢复 |
 | 急停开关 | 用户/维护者创建 `~/.dsh/pre-edit-review/DISABLED` | 插件旁路所有审批（仅用于故障恢复） |
 
 模式建议：
 - 日常开发希望被打断 → 默认工具级；
 - 关键仓库/不受信任 Agent → 严格模式（`/review strict`）；
-- 明确信任 Agent、成批改代码 → 放行模式（`/review bypass`），改完建议 `off`。
+- 明确信任 Agent、成批改代码 → `/review off` 暂停本会话审批，改完 `/review on` 恢复。
 
 ## 5. Agent 侧行为（你不需要手动教它）
 
@@ -57,11 +57,11 @@
 ## 7. 常见操作
 
 ```text
-/review status            # 当前开关、客户端连接、pending 数、文件策略、是否放行
-/review on | off          # 运行时开关（本 profile 会话）
+/review status            # 开关状态、客户端连接、pending 数、文件策略、是否暂停
+/review off               # 暂停本会话审批（写入直接执行，状态栏显示 · 已关闭）
+/review on                # 恢复本会话审批
 /review strict            # 切到 read-only（不可绕过）
 /review balanced          # 切回 workspace-write
-/review bypass on | off   # 放行模式
 /review history 20        # 最近 20 条审批记录
 ```
 

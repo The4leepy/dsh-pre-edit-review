@@ -16,7 +16,7 @@
 import { classify } from './classifier.ts'
 import type { PluginConfig } from './config.ts'
 import type { HostContext, ToolDefinitionView, ToolExecutionResultView, ToolExecutionView } from './host.ts'
-import type { BypassRegistry } from './bypass.ts'
+import type { PauseRegistry } from './pause.ts'
 import type { KillSwitch } from './kill-switch.ts'
 import { failureResult, type ReviewCoordinator, type ReviewResult } from './review-coordinator.ts'
 import { hasProposalBuilder } from './proposal.ts'
@@ -26,7 +26,7 @@ export interface GateDeps {
   config: PluginConfig
   coordinator: ReviewCoordinator
   killSwitch: KillSwitch
-  bypass: BypassRegistry
+  pause: PauseRegistry
 }
 
 function isPassthrough(result: ReviewResult): result is { passthrough: true } {
@@ -44,13 +44,13 @@ function lookupDefinition(ctx: HostContext, name: string): ToolDefinitionView | 
 
 /** Install the gate; returns a disposer. */
 export function installGate(deps: GateDeps): () => void {
-  const { ctx, config, coordinator, killSwitch, bypass } = deps
+  const { ctx, config, coordinator, killSwitch, pause } = deps
   return ctx.on(
     'tools/execute',
     async (exec: ToolExecutionView, next: () => Promise<ToolExecutionResultView>) => {
       if (killSwitch.active()) return next()
       // User-selected release mode for this session: let the tool write directly.
-      if (bypass.isBypassed(exec.agent?.session)) return next()
+      if (pause.isPaused(exec.agent?.session)) return next()
 
       let classification
       try {

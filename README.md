@@ -104,8 +104,8 @@ pnpm run package:extension        # 产出 packages/vscode-extension/*.vsix
 ## 安全边界（务必阅读，完整版见 [docs/security.md](docs/security.md)）
 
 - 工具级模式**不防** bash / python / sed / 脚本写入；要"审批前绝对不可写"请切换到严格模式（`/review strict`）。
-- 插件安装在 profile 后对该 profile 的**所有会话**生效；CLI/headless 场景没有 VS Code 客户端时会 fail-closed（拒绝写入），可用 `/review off`、`/review bypass`（仅用户可开）或配置 `enabled: false` 关闭。
+- 插件安装在 profile 后对该 profile 的**所有会话**生效；CLI/headless 场景没有 VS Code 客户端时会 fail-closed（拒绝写入），可用 `/review off`（仅用户可开、只影响当前会话）或配置 `enabled: false` 关闭。
 - 崩溃时未审批请求一律保持未提交；重启后 pending 记录标记为 expired，绝不重放提交。
 - 急停开关：`touch ~/.dsh/pre-edit-review/DISABLED` 后 1 秒内所有审批旁路（插件故障时的恢复通道）。
-- **放行模式（用户主动选择）**：在会话里输入 `/review bypass` 开启、`/review bypass off` 关闭。开启后该会话的文件写入**直接执行、不再弹审批**（沙箱策略不变，`read-only` 仍然禁写）；状态栏会显示 `· 放行`，每次切换都写入审计。仅在内存中生效，Host 重启自动恢复审批。
+- **暂停审批（用户主动选择）**：在会话里输入 `/review off` 暂停、`/review on` 恢复。暂停后该会话的文件写入**直接执行、不再弹审批**（沙箱策略不变，`read-only` 仍然禁写）；状态栏显示 `· 已关闭`，每次切换都写入审计。仅在内存中生效，Host 重启自动恢复审批。`allowPause:false` 可整体禁用该命令。
 - 通信只接受对既有 `requestId` 的 accept/reject；协议中不存在"写任意文件"的方法。
