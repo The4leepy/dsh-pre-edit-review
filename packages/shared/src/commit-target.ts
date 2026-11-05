@@ -24,6 +24,12 @@ export interface FileSnapshot {
   isNewFile: boolean
   /** LF-normalised original content; `null` when the file did not exist. */
   content: string | null
+  /**
+   * Original content exactly as read (line endings preserved). Present when a
+   * proposal builder must mirror a tool whose matching is raw, e.g.
+   * `str_replace_editor`. Optional so existing snapshots stay valid.
+   */
+  rawContent?: string | null
   sha256: string | null
   /** Opaque provider version token (`FsVersion`); never interpreted by callers. */
   version: unknown

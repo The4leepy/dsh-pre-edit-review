@@ -40,7 +40,7 @@ export interface PluginConfig {
   auditRetentionDays: number
 }
 
-export const DEFAULT_REVIEW_TOOLS = ['write', 'edit'] as const
+export const DEFAULT_REVIEW_TOOLS = ['write', 'edit', 'str_replace_editor'] as const
 export const DEFAULT_MUTATION_PATTERNS = [
   '(^|_)(write|edit|create|delete|remove|move|rename|replace|patch|apply)(_|$)',
 ] as const

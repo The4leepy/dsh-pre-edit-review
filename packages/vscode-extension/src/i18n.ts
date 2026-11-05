@@ -8,6 +8,19 @@
 
 import * as vscode from 'vscode'
 
+import type { HistoryStatus } from './history-store.ts'
+
+/** Arguments for the history-row tooltip (kept structural to avoid a cycle). */
+export interface HistoryTooltipEntry {
+  displayPath: string
+  status: HistoryStatus
+  mode: string
+  toolName: string
+  outcome: string
+  edited: boolean
+  at: Date
+}
+
 export interface Messages {
   readonly locale: 'en' | 'zh-CN'
 
@@ -61,11 +74,46 @@ export interface Messages {
   readonly autoAcceptConfirm: string
   readonly autoAcceptConfirmYes: string
 
+  // Pending queue view
+  readonly openItemTitle: string
+  pendingBadgeTooltip(count: number): string
+  pendingItemTooltip(absolutePath: string, openedAt: Date, operation: string): string
+  reopenReviewHint(displayPath: string): string
+
+  // History view
+  historyStatusLabel(status: HistoryStatus): string
+  historyDescription(status: HistoryStatus, mode: string, toolName: string, edited: boolean): string
+  historyItemTooltip(entry: HistoryTooltipEntry): string
+  readonly clearHistoryConfirm: string
+  readonly clearHistoryConfirmYes: string
+  readonly clearHistoryDone: string
+
+  // Reject all
+  rejectAllSummary(rejected: number, total: number, remaining: number): string
+
   // Self-test
   selfTestPassed(steps: number, reportPath: string): string
   selfTestFailed(detail: string): string
   readonly selfTestNoWorkspace: string
   readonly selfTestSkippedPending: string
+}
+
+const enHistoryStatus: Readonly<Record<HistoryStatus, string>> = {
+  committed: 'Committed',
+  rejected: 'Rejected',
+  conflict: 'Conflict',
+  expired: 'Expired',
+  cancelled: 'Cancelled',
+  failed: 'Failed',
+}
+
+const zhHistoryStatus: Readonly<Record<HistoryStatus, string>> = {
+  committed: '已提交',
+  rejected: '已拒绝',
+  conflict: '冲突',
+  expired: '已过期',
+  cancelled: '已取消',
+  failed: '失败',
 }
 
 const en: Messages = {
@@ -117,6 +165,27 @@ const en: Messages = {
   autoAcceptConfirm:
     'Arm AUTO-ACCEPT? Every change the agent proposes from now on will be committed without asking, for 5 minutes.',
   autoAcceptConfirmYes: 'Arm AUTO-ACCEPT',
+  openItemTitle: 'Open Review',
+  pendingBadgeTooltip: (count) => `${count} pending review${count === 1 ? '' : 's'}`,
+  pendingItemTooltip: (absolutePath, openedAt, operation) =>
+    `${absolutePath}\n${operation} · opened ${openedAt.toLocaleString()}`,
+  reopenReviewHint: (displayPath) =>
+    `Review opened: ${displayPath}. Use ✓ or ✗ in the editor title bar (top-right) to accept or reject.`,
+  historyStatusLabel: (status) => enHistoryStatus[status],
+  historyDescription: (status, mode, toolName, edited) =>
+    `${enHistoryStatus[status]} · ${mode} · ${toolName}${edited ? ' · edited' : ''}`,
+  historyItemTooltip: (entry) =>
+    `${entry.displayPath}\n${enHistoryStatus[entry.status]} · ${entry.mode} · ${entry.toolName}\nOutcome: ${
+      entry.outcome
+    }${entry.edited ? ' · edited' : ''}\n${entry.at.toLocaleString()}`,
+  clearHistoryConfirm:
+    'Clear the review history? This deletes the last 50 decision records for this workspace.',
+  clearHistoryConfirmYes: 'Clear History',
+  clearHistoryDone: 'Review history cleared.',
+  rejectAllSummary: (rejected, total, remaining) =>
+    remaining > 0
+      ? `Rejected ${rejected} of ${total} pending review(s); ${remaining} still pending.`
+      : `Rejected all ${rejected} pending review(s).`,
   selfTestPassed: (steps, reportPath) => `Self-test PASSED (${steps} steps). Report: ${reportPath}`,
   selfTestFailed: (detail) => `Self-test FAILED: ${detail}`,
   selfTestNoWorkspace: 'Self-test needs an open workspace folder to write .spike/ext-selftest.json.',
@@ -170,6 +239,26 @@ const zhCN: Messages = {
   autoAcceptDisabled: '自动接受未启用。请先在设置中开启 "dpr.autoAccept"，再执行 dpr.acceptAll。',
   autoAcceptConfirm: '启用 AUTO-ACCEPT？接下来 5 分钟内 Agent 提出的所有修改都会不经确认直接提交。',
   autoAcceptConfirmYes: '启用 AUTO-ACCEPT',
+  openItemTitle: '打开审阅',
+  pendingBadgeTooltip: (count) => `${count} 个待审批`,
+  pendingItemTooltip: (absolutePath, openedAt, operation) =>
+    `${absolutePath}\n${operation} · 打开于 ${openedAt.toLocaleString()}`,
+  reopenReviewHint: (displayPath) =>
+    `已打开审阅：${displayPath}。点击编辑器右上角的 ✓ / ✗ 接受或拒绝。`,
+  historyStatusLabel: (status) => zhHistoryStatus[status],
+  historyDescription: (status, mode, toolName, edited) =>
+    `${zhHistoryStatus[status]} · ${mode} · ${toolName}${edited ? ' · 已编辑' : ''}`,
+  historyItemTooltip: (entry) =>
+    `${entry.displayPath}\n${zhHistoryStatus[entry.status]} · ${entry.mode} · ${entry.toolName}\n结果：${
+      entry.outcome
+    }${entry.edited ? ' · 已编辑' : ''}\n${entry.at.toLocaleString()}`,
+  clearHistoryConfirm: '清空审阅历史？将删除本工作区最近 50 条决策记录。',
+  clearHistoryConfirmYes: '清空历史',
+  clearHistoryDone: '审阅历史已清空。',
+  rejectAllSummary: (rejected, total, remaining) =>
+    remaining > 0
+      ? `已拒绝 ${rejected}/${total} 个待审批请求；仍有 ${remaining} 个未处理。`
+      : `已拒绝全部 ${rejected} 个待审批请求。`,
   selfTestPassed: (steps, reportPath) => `自检通过（${steps} 步）。报告：${reportPath}`,
   selfTestFailed: (detail) => `自检失败：${detail}`,
   selfTestNoWorkspace: '自检需要打开一个工作区目录，以写入 .spike/ext-selftest.json。',

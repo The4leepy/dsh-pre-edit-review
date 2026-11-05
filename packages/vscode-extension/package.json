@@ -3,7 +3,7 @@
   "displayName": "DeepSeek Pre-edit Review",
   "description": "Review and edit agent-proposed file changes in an editable VS Code diff before anything is written to disk.",
   "publisher": "The-4leepy",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "engines": {
     "vscode": "^1.145.0"
@@ -14,6 +14,27 @@
     "onUri"
   ],
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "dpr",
+          "title": "%viewContainer.dpr%",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "dpr": [
+        {
+          "id": "dpr.pendingView",
+          "name": "%view.pending%"
+        },
+        {
+          "id": "dpr.historyView",
+          "name": "%view.history%"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "dpr.accept",
@@ -26,6 +47,21 @@
         "icon": "$(close)"
       },
       {
+        "command": "dpr.acceptItem",
+        "title": "%command.acceptItem%",
+        "icon": "$(check)"
+      },
+      {
+        "command": "dpr.rejectItem",
+        "title": "%command.rejectItem%",
+        "icon": "$(close)"
+      },
+      {
+        "command": "dpr.openItem",
+        "title": "%command.openItem%",
+        "icon": "$(go-to-file)"
+      },
+      {
         "command": "dpr.showPending",
         "title": "%command.showPending%"
       },
@@ -35,7 +71,18 @@
       },
       {
         "command": "dpr.acceptAll",
-        "title": "%command.acceptAll%"
+        "title": "%command.acceptAll%",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "dpr.rejectAll",
+        "title": "%command.rejectAll%",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "dpr.clearHistory",
+        "title": "%command.clearHistory%",
+        "icon": "$(trash)"
       },
       {
         "command": "dpr.runSelfTest",
@@ -57,6 +104,35 @@
           "icon": "$(check)"
         }
       ],
+      "view/title": [
+        {
+          "command": "dpr.acceptAll",
+          "when": "view == dpr.pendingView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "dpr.rejectAll",
+          "when": "view == dpr.pendingView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "dpr.clearHistory",
+          "when": "view == dpr.historyView",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "dpr.acceptItem",
+          "when": "view == dpr.pendingView && viewItem == pendingReview",
+          "group": "inline"
+        },
+        {
+          "command": "dpr.rejectItem",
+          "when": "view == dpr.pendingView && viewItem == pendingReview",
+          "group": "inline"
+        }
+      ],
       "commandPalette": [
         {
           "command": "dpr.accept",
@@ -65,6 +141,18 @@
         {
           "command": "dpr.reject",
           "when": "dpr.hasPending"
+        },
+        {
+          "command": "dpr.acceptItem",
+          "when": "false"
+        },
+        {
+          "command": "dpr.rejectItem",
+          "when": "false"
+        },
+        {
+          "command": "dpr.openItem",
+          "when": "false"
         }
       ]
     },

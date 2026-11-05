@@ -14,6 +14,7 @@ import type { CommandResultView, HostContext, LoggerView } from './host.ts'
 import { installGate } from './gate.ts'
 import { createKillSwitch } from './kill-switch.ts'
 import { createRuntime, PLUGIN_VERSION, type PluginRuntime } from './runtime.ts'
+import { formatHistory, readAuditHistory } from './history.ts'
 import type { ReviewCoordinator } from './review-coordinator.ts'
 
 export const name = 'pre-edit-review'
@@ -141,8 +142,8 @@ function installCommands(ctx: HostContext, runtime: PluginRuntime, logger: Logge
     sub.commands.register({
       name: 'review',
       description: 'Pre-edit review status; switch it on/off or between strict and balanced file policy',
-      input: { hint: '[status|on|off|strict|balanced]' },
-      handler: (invocation: any): CommandResultView => {
+      input: { hint: '[status|on|off|strict|balanced|history [n]]' },
+      handler: async (invocation: any): Promise<CommandResultView> => {
         const raw = String(invocation?.rawInput ?? '').trim().toLowerCase()
         const config = runtime.config
         const agent = invocation?.agent
@@ -175,6 +176,12 @@ function installCommands(ctx: HostContext, runtime: PluginRuntime, logger: Logge
         }
         if (raw === 'strict') return switchPreset('read-only')
         if (raw === 'balanced') return switchPreset('workspace-write')
+        if (raw === 'history' || raw.startsWith('history ')) {
+          const requested = Number(raw.slice('history'.length).trim())
+          const limit = Number.isInteger(requested) && requested > 0 ? Math.min(requested, 50) : 10
+          const entries = await readAuditHistory(config.stateDir, limit)
+          return { kind: 'success', text: formatHistory(entries, limit) }
+        }
         if (raw === '' || raw === 'status') {
           const status = runtime.coordinator.status()
           const policy = ctx.get('sandboxPolicy') as
@@ -201,7 +208,7 @@ function installCommands(ctx: HostContext, runtime: PluginRuntime, logger: Logge
           if (!strict) lines.push('tip: /review strict switches this session to read-only, the only mode that cannot be bypassed.')
           return { kind: 'success', text: lines.join('\n') }
         }
-        return { kind: 'error', text: `unknown /review argument "${raw}" (use status|on|off|strict|balanced)` }
+        return { kind: 'error', text: `unknown /review argument "${raw}" (use status|on|off|strict|balanced|history [n])` }
       },
     })
     logger.info('[pre-edit-review] /review command registered')

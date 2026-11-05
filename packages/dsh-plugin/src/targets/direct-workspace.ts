@@ -83,6 +83,7 @@ export class DirectWorkspaceTarget implements CommitTarget {
       exists: raw !== null,
       isNewFile: raw === null,
       content,
+      rawContent: raw,
       sha256: content === null ? null : sha256Hex(content),
       version: second?.version,
       lineEndings: raw === null ? 'LF' : detectLineEndings(raw),

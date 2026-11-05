@@ -50,6 +50,8 @@ export interface ReviewSessionOptions {
   /** Suppress informational toasts (warnings/errors are still shown). */
   quiet?: boolean
   onStateChanged?(): void
+  /** Called once per settled decision so the extension can append history. */
+  onSettled?(record: SettledReview): void
   onConnectionChanged?(info: IpcConnectionInfo): void
   onLog?(message: string): void
 }
@@ -61,16 +63,32 @@ export interface PendingReview {
   readonly openedAt: number
 }
 
+/**
+ * One settled decision, emitted for the decision-history view. This stays
+ * protocol-agnostic: the extension maps `outcome` to a history status.
+ */
+export interface SettledReview {
+  requestId: string
+  displayPath: string
+  toolName: string
+  mode: string
+  outcome: string
+  /** True when the accepted content differed from the agent's proposal. */
+  edited: boolean
+  at: number
+}
+
 interface PendingPickItem extends vscode.QuickPickItem {
   review: PendingReview
 }
 
 interface AwaitingOutcome {
-  displayPath: string
+  params: ReviewRequestParams
+  edited: boolean
   timer: NodeJS.Timeout
 }
 
-type AutoAcceptDisarmReason = 'toggled' | 'expired' | 'disconnect' | 'shutdown' | 'disposed'
+type AutoAcceptDisarmReason = 'toggled' | 'expired' | 'disconnect' | 'shutdown' | 'rejectAll' | 'disposed'
 
 const AUTO_ACCEPT_WINDOW_MS = 5 * 60 * 1000
 const DOC_OPEN_TIMEOUT_MS = 6000
@@ -180,13 +198,14 @@ export class ReviewSession {
     const requestId = review.params.requestId
     if (this.deciding.has(requestId)) return
     this.deciding.add(requestId)
+    const finalContent = this.finalContentFor(review)
     let reply: DecisionResult
     try {
       reply = await this.sendDecision({
         requestId,
         nonce: review.params.nonce,
         status: 'accept',
-        finalContent: this.finalContentFor(review),
+        finalContent,
       })
     } catch (error) {
       this.deciding.delete(requestId)
@@ -197,7 +216,7 @@ export class ReviewSession {
     this.deciding.delete(requestId)
     await this.finalizeProposal(review)
     this.removePending(requestId)
-    this.notifyOutcome(requestId, review.params.displayPath, reply)
+    this.notifyOutcome(review.params, reply, finalContent !== review.params.after)
   }
 
   async reject(arg?: ReviewCommandArg): Promise<void> {
@@ -246,7 +265,7 @@ export class ReviewSession {
     await this.revertProposal(review)
     await this.closeDiffTab(review.proposalUri)
     this.removePending(requestId)
-    this.notifyOutcome(requestId, review.params.displayPath, reply)
+    this.notifyOutcome(review.params, reply, false)
   }
 
   async showPending(): Promise<void> {
@@ -270,6 +289,53 @@ export class ReviewSession {
     if (picked === undefined) return
     if (!this.pending.has(picked.review.params.requestId)) return
     await this.openDiff(picked.review)
+  }
+
+  /**
+   * Open the diff for one specific pending request (pending-tree row click).
+   * Reuses `resolveTarget`/`openDiff` so behaviour matches the editor command,
+   * and repeats the M2.1 prompt so the title-bar decision buttons stay
+   * discoverable after the first review.
+   */
+  async openReview(requestId: string): Promise<void> {
+    if (this.disposed) return
+    const review = this.resolveTarget(requestId)
+    if (review === undefined || review.params.requestId !== requestId) {
+      this.showInfo(this.messages.noPendingReview)
+      return
+    }
+    await this.openDiff(review)
+    if (this.options.quiet === true) return
+    this.showInfo(this.messages.reopenReviewHint(review.params.displayPath))
+  }
+
+  /**
+   * Reject every currently pending review, sequentially. Per-item failures are
+   * ignored (the individual `reject` call already warns) and the queue is left
+   * untouched for anything that could not be settled. Disarms auto-accept so a
+   * later request cannot slip through unread while the queue is being drained.
+   */
+  async rejectAll(): Promise<void> {
+    if (this.disposed) return
+    if (this.autoAcceptArmed) this.disarmAutoAccept('rejectAll')
+    const targets = [...this.pending.keys()]
+    if (targets.length === 0) {
+      this.showInfo(this.messages.noPendingReview)
+      return
+    }
+    let rejected = 0
+    for (const requestId of targets) {
+      if (this.disposed) break
+      if (!this.pending.has(requestId)) continue
+      try {
+        await this.reject({ requestId, reason: '', skipPrompt: true })
+      } catch (error) {
+        this.log(`rejectAll: ${requestId} threw unexpectedly: ${describeError(error)}`)
+      }
+      if (!this.pending.has(requestId)) rejected += 1
+    }
+    this.notifyStateChanged()
+    this.showInfo(this.messages.rejectAllSummary(rejected, targets.length, this.pending.size))
   }
 
   async acceptAll(): Promise<void> {
@@ -329,10 +395,10 @@ export class ReviewSession {
       const handled = await this.tryAutoAccept(params)
       if (handled) return
     }
-    await this.openReview(params)
+    await this.openNewReview(params)
   }
 
-  private async openReview(params: ReviewRequestParams): Promise<void> {
+  private async openNewReview(params: ReviewRequestParams): Promise<void> {
     if (this.disposed || this.pending.has(params.requestId)) return
     const proposalUri = proposalUriFor(params.requestId, params.displayPath)
     const originalUri = params.isNewFile
@@ -399,7 +465,7 @@ export class ReviewSession {
         status: 'accept',
         finalContent: params.after,
       })
-      this.notifyOutcome(params.requestId, params.displayPath, reply)
+      this.notifyOutcome(params, reply, false)
       return true
     } catch (error) {
       this.log(`auto-accept failed: ${describeError(error)}`)
@@ -417,6 +483,7 @@ export class ReviewSession {
     this.pending.delete(params.requestId)
     this.provider.release(params.requestId)
     this.notifyStateChanged()
+    this.recordSettled(review.params, 'cancelled', false)
     void this.closeDiffTab(review.proposalUri)
     this.log(`review cancelled by Host: ${params.requestId} (${params.reason})`)
     this.showWarning(this.messages.reviewCancelledByHost(review.params.displayPath, params.reason))
@@ -428,14 +495,12 @@ export class ReviewSession {
       this.log(`review/state ${params.requestId}: ${params.state}`)
       return
     }
+    const detail = params.detail === undefined ? undefined : { message: params.detail }
     const awaiting = this.awaitingOutcome.get(params.requestId)
     if (awaiting !== undefined) {
       this.clearAwaitingOutcome(params.requestId)
-      this.notifyOutcomeValue(
-        awaiting.displayPath,
-        params.state,
-        params.detail === undefined ? undefined : { message: params.detail },
-      )
+      this.notifyOutcomeValue(awaiting.params.displayPath, params.state, detail)
+      this.recordSettled(awaiting.params, params.state, awaiting.edited)
     }
     const review = this.pending.get(params.requestId)
     if (review !== undefined) {
@@ -443,6 +508,7 @@ export class ReviewSession {
       this.provider.release(params.requestId)
       this.notifyStateChanged()
       void this.closeDiffTab(review.proposalUri)
+      this.recordSettled(review.params, params.state, false)
     }
   }
 
@@ -540,11 +606,28 @@ export class ReviewSession {
     }
   }
 
-  private notifyOutcome(requestId: string, displayPath: string, reply: DecisionResult): void {
-    this.notifyOutcomeValue(displayPath, reply.outcome, reply.detail)
-    if (!KNOWN_OUTCOMES.has(reply.outcome)) {
-      this.trackAwaitingOutcome(requestId, displayPath)
+  private notifyOutcome(params: ReviewRequestParams, reply: DecisionResult, edited: boolean): void {
+    this.notifyOutcomeValue(params.displayPath, reply.outcome, reply.detail)
+    if (KNOWN_OUTCOMES.has(reply.outcome)) {
+      this.recordSettled(params, reply.outcome, edited)
+    } else {
+      // The Host answered `ok` with a not-yet-terminal outcome; wait for the
+      // matching review/state notification before writing history.
+      this.trackAwaitingOutcome(params.requestId, params, edited)
     }
+  }
+
+  private recordSettled(params: ReviewRequestParams, outcome: string, edited: boolean): void {
+    if (!KNOWN_OUTCOMES.has(outcome)) return
+    this.options.onSettled?.({
+      requestId: params.requestId,
+      displayPath: params.displayPath,
+      toolName: params.toolName,
+      mode: params.mode,
+      outcome,
+      edited,
+      at: Date.now(),
+    })
   }
 
   private notifyOutcomeValue(
@@ -589,13 +672,13 @@ export class ReviewSession {
     return parts.length === 0 ? undefined : parts.join(': ')
   }
 
-  private trackAwaitingOutcome(requestId: string, displayPath: string): void {
+  private trackAwaitingOutcome(requestId: string, params: ReviewRequestParams, edited: boolean): void {
     const existing = this.awaitingOutcome.get(requestId)
     if (existing !== undefined) clearTimeout(existing.timer)
     const timer = setTimeout(() => {
       this.awaitingOutcome.delete(requestId)
     }, WAIT_OUTCOME_MS)
-    this.awaitingOutcome.set(requestId, { displayPath, timer })
+    this.awaitingOutcome.set(requestId, { params, edited, timer })
   }
 
   private clearAwaitingOutcome(requestId: string): void {

@@ -8,8 +8,8 @@
  *   token file, and show one diff per `review/request`;
  * - turn Accept/Reject into a protocol `decision` request (the only mutation
  *   the extension can trigger);
- * - expose status / queue / auto-accept commands, and run an in-process
- *   self-test against a mock Host.
+ * - expose the pending/review-history activity-bar views, status / queue /
+ *   auto-accept commands, and run an in-process self-test against a mock Host.
  */
 
 import { promises as fs } from 'node:fs'
@@ -18,14 +18,27 @@ import * as path from 'node:path'
 import * as vscode from 'vscode'
 
 import { DPR_SCHEME, DprFileSystemProvider } from './fs-provider.ts'
+import { historyStatusFor, ReviewHistoryStore } from './history-store.ts'
 import { pickMessages, type Messages } from './i18n.ts'
 import type { IpcConnectionInfo } from './ipc-client.ts'
-import { ReviewSession, type DecisionCommandArg, type ReviewCommandArg } from './review-session.ts'
+import {
+  ReviewSession,
+  type DecisionCommandArg,
+  type ReviewCommandArg,
+  type SettledReview,
+} from './review-session.ts'
 import { runExtensionSelfTest, type SelfTestReport } from './self-test.ts'
+import {
+  HistoryReviewsProvider,
+  PendingReviewsProvider,
+  type HistoryReviewTreeItem,
+  type PendingReviewTreeItem,
+} from './tree-views.ts'
 import { describeError, expandHome, isRecord } from './util.ts'
 
 const SETTINGS_SECTION = 'dpr'
 const AUTO_SELF_TEST_DELAY_MS = 2000
+const PENDING_VIEW_ID = 'dpr.pendingView'
 
 let provider: DprFileSystemProvider | undefined
 let providerRegistration: vscode.Disposable | undefined
@@ -34,6 +47,11 @@ let selfTestSession: ReviewSession | undefined
 let statusBar: vscode.StatusBarItem | undefined
 let autoAcceptBar: vscode.StatusBarItem | undefined
 let output: vscode.OutputChannel | undefined
+let history: ReviewHistoryStore | undefined
+let pendingProvider: PendingReviewsProvider | undefined
+let historyProvider: HistoryReviewsProvider | undefined
+let pendingTreeView: vscode.TreeView<PendingReviewTreeItem> | undefined
+let historyTreeView: vscode.TreeView<HistoryReviewTreeItem> | undefined
 let messages: Messages = pickMessages('en')
 let clientVersion = '0.0.0'
 let offlineWarned = false
@@ -63,6 +81,21 @@ export function activate(context: vscode.ExtensionContext): void {
   autoAcceptBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground')
   context.subscriptions.push(autoAcceptBar)
 
+  // -- activity-bar views (Phase 3) ----------------------------------------
+  history = new ReviewHistoryStore({
+    memento: context.workspaceState,
+    onChanged: (): void => {
+      historyProvider?.refresh()
+    },
+  })
+  historyProvider = new HistoryReviewsProvider(history, messages)
+  pendingProvider = new PendingReviewsProvider(() => mainSession, messages)
+  pendingTreeView = tryCreateTreeView(PENDING_VIEW_ID, pendingProvider)
+  historyTreeView = tryCreateTreeView('dpr.historyView', historyProvider)
+  if (pendingTreeView !== undefined) context.subscriptions.push(pendingTreeView)
+  if (historyTreeView !== undefined) context.subscriptions.push(historyTreeView)
+  context.subscriptions.push(pendingProvider, historyProvider)
+
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(() => {
       updateProposalContext()
@@ -73,9 +106,14 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('dpr.accept', (arg?: unknown) => acceptCommand(arg)),
     vscode.commands.registerCommand('dpr.reject', (arg?: unknown) => rejectCommand(arg)),
-    vscode.commands.registerCommand('dpr.showPending', () => withMainSession((session) => session.showPending())),
+    vscode.commands.registerCommand('dpr.acceptItem', (arg?: unknown) => acceptCommand(arg)),
+    vscode.commands.registerCommand('dpr.rejectItem', (arg?: unknown) => rejectCommand(arg)),
+    vscode.commands.registerCommand('dpr.openItem', (arg?: unknown) => openItemCommand(arg)),
+    vscode.commands.registerCommand('dpr.showPending', () => showPendingCommand()),
     vscode.commands.registerCommand('dpr.reconnect', () => reconnectCommand()),
     vscode.commands.registerCommand('dpr.acceptAll', () => withMainSession((session) => session.acceptAll())),
+    vscode.commands.registerCommand('dpr.rejectAll', () => rejectAllCommand()),
+    vscode.commands.registerCommand('dpr.clearHistory', () => clearHistoryCommand()),
     vscode.commands.registerCommand('dpr.runSelfTest', () => runSelfTestCommand('command')),
   )
 
@@ -108,6 +146,15 @@ export function deactivate(): void {
   statusBar = undefined
   autoAcceptBar?.dispose()
   autoAcceptBar = undefined
+  pendingTreeView?.dispose()
+  pendingTreeView = undefined
+  historyTreeView?.dispose()
+  historyTreeView = undefined
+  pendingProvider?.dispose()
+  pendingProvider = undefined
+  historyProvider?.dispose()
+  historyProvider = undefined
+  history = undefined
   output?.dispose()
   output = undefined
 }
@@ -115,6 +162,23 @@ export function deactivate(): void {
 // ---------------------------------------------------------------------------
 // Session lifecycle
 // ---------------------------------------------------------------------------
+
+/**
+ * Create a contributed tree view. If the view id is not registered (stale
+ * extension host manifest, tests), keep the extension usable without the view
+ * rather than failing activation.
+ */
+function tryCreateTreeView<T>(
+  id: string,
+  treeDataProvider: vscode.TreeDataProvider<T>,
+): vscode.TreeView<T> | undefined {
+  try {
+    return vscode.window.createTreeView(id, { treeDataProvider, showCollapseAll: false })
+  } catch (error) {
+    log(`could not create the ${id} tree view: ${describeError(error)}`)
+    return undefined
+  }
+}
 
 function currentConfig(): vscode.WorkspaceConfiguration {
   return vscode.workspace.getConfiguration(SETTINGS_SECTION)
@@ -131,7 +195,8 @@ function createSession(stateDir: string): ReviewSession {
     clientVersion,
     messages,
     provider,
-    onStateChanged: (): void => updateStatusBar(),
+    onStateChanged: (): void => onSessionStateChanged(),
+    onSettled: (record): void => onDecisionSettled(record),
     onConnectionChanged: (info): void => handleConnectionChanged(info),
     onLog: (message): void => log(message),
   })
@@ -191,6 +256,49 @@ function handleConnectionChanged(info: IpcConnectionInfo): void {
   updateStatusBar()
 }
 
+/** Keep every review surface in sync after a queue change. */
+function onSessionStateChanged(): void {
+  updateStatusBar()
+  refreshTrees()
+}
+
+/**
+ * Persist one settled decision and refresh the history view. Writes are
+ * best-effort: history must never be able to break a decision.
+ */
+function onDecisionSettled(record: SettledReview): void {
+  refreshTrees()
+  const store = history
+  if (store === undefined) return
+  void store
+    .append({
+      requestId: record.requestId,
+      displayPath: record.displayPath,
+      toolName: record.toolName,
+      mode: record.mode,
+      status: historyStatusFor(record.outcome),
+      outcome: record.outcome,
+      edited: record.edited,
+      at: record.at,
+    })
+    .catch((error: unknown) => {
+      log(`could not append review history: ${describeError(error)}`)
+    })
+}
+
+function refreshTrees(): void {
+  pendingProvider?.refresh()
+  historyProvider?.refresh()
+}
+
+/** Pending-count badge on the activity-bar container; cleared at zero. */
+function updatePendingBadge(): void {
+  if (pendingTreeView === undefined) return
+  const pending = mainSession?.pendingCount ?? 0
+  pendingTreeView.badge =
+    pending > 0 ? { value: pending, tooltip: messages.pendingBadgeTooltip(pending) } : undefined
+}
+
 function updateStatusBar(): void {
   if (statusBar === undefined) return
   const connected = mainSession?.connected === true
@@ -215,6 +323,7 @@ function updateStatusBar(): void {
   void vscode.commands.executeCommand('setContext', 'dpr.hasPending', hasPending)
   void vscode.commands.executeCommand('setContext', 'dpr.pendingCount', pending)
   updateProposalContext()
+  updatePendingBadge()
 
   if (autoAcceptBar === undefined) return
   if (mainSession?.autoAcceptArmed === true) {
@@ -294,6 +403,77 @@ function rejectCommand(arg?: unknown): Promise<void> {
   })
 }
 
+/** Open one specific pending review (pending-tree row / palette). */
+function openItemCommand(arg?: unknown): Promise<void> {
+  const session = commandSession(arg)
+  if (session === undefined) {
+    void vscode.window.showInformationMessage(messages.notConnected)
+    return Promise.resolve()
+  }
+  const requestId = requestIdFromArg(arg)
+  if (requestId === undefined) {
+    void vscode.window.showInformationMessage(messages.noPendingReview)
+    return Promise.resolve()
+  }
+  log(`dpr.openItem requestId=${requestId}`)
+  return session.openReview(requestId).catch((error: unknown) => {
+    log(`dpr.openItem failed: ${describeError(error)}`)
+    void vscode.window.showWarningMessage(describeError(error))
+  })
+}
+
+/** Reject every pending review; disarms auto-accept first (see ReviewSession). */
+function rejectAllCommand(): Promise<void> {
+  const session = commandSession(undefined)
+  if (session === undefined) {
+    void vscode.window.showInformationMessage(messages.notConnected)
+    return Promise.resolve()
+  }
+  log(`dpr.rejectAll pending=${session.pendingCount}`)
+  return session.rejectAll().catch((error: unknown) => {
+    log(`dpr.rejectAll failed: ${describeError(error)}`)
+    void vscode.window.showWarningMessage(describeError(error))
+  })
+}
+
+async function showPendingCommand(): Promise<void> {
+  revealPendingView()
+  await withMainSession((session) => session.showPending())
+}
+
+async function clearHistoryCommand(): Promise<void> {
+  const store = history
+  if (store === undefined) return
+  const confirmed = await vscode.window.showWarningMessage(
+    messages.clearHistoryConfirm,
+    { modal: true },
+    messages.clearHistoryConfirmYes,
+  )
+  if (confirmed !== messages.clearHistoryConfirmYes) return
+  try {
+    await store.clear()
+    log('review history cleared')
+    void vscode.window.showInformationMessage(messages.clearHistoryDone)
+  } catch (error) {
+    log(`could not clear review history: ${describeError(error)}`)
+    void vscode.window.showWarningMessage(describeError(error))
+  }
+}
+
+/** Bring the pending view to the foreground; quick-pick semantics stay intact. */
+function revealPendingView(): void {
+  void revealCommand('workbench.view.extension.dpr')
+  void revealCommand(`${PENDING_VIEW_ID}.focus`)
+}
+
+async function revealCommand(command: string): Promise<void> {
+  try {
+    await vscode.commands.executeCommand(command)
+  } catch (error) {
+    log(`could not reveal the pending view (${command}): ${describeError(error)}`)
+  }
+}
+
 function withMainSession(action: (session: ReviewSession) => Promise<void>): Promise<void> {
   if (mainSession === undefined) {
     void vscode.window.showInformationMessage(messages.notConnected)
@@ -362,7 +542,7 @@ async function autoRunSelfTest(): Promise<void> {
 
 function runSelfTestCommand(trigger: 'auto' | 'command'): Promise<SelfTestReport | undefined> {
   if (selfTestInFlight !== undefined) return selfTestInFlight
-  if (provider === undefined) return Promise.resolve(undefined)
+  if (provider === undefined || history === undefined) return Promise.resolve(undefined)
   if (trigger === 'command') selfTestAutoRan = true
   log(`running extension self-test (${trigger})`)
   const run = runExtensionSelfTest({
@@ -370,6 +550,7 @@ function runSelfTestCommand(trigger: 'auto' | 'command'): Promise<SelfTestReport
     clientVersion,
     messages,
     provider,
+    history,
     setSession: (session): void => {
       selfTestSession = session
     },

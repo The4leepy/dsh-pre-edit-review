@@ -22,15 +22,39 @@ writes to the workspace; the extension never commits anything itself.
 - `dpr.acceptAll` (only with `dpr.autoAccept` enabled) arms a 5-minute
   auto-accept window and shows an `AUTO-ACCEPT` status bar item.
 
+## Review queue and history (0.2.0)
+
+The extension contributes an **activity-bar container** (`dpr`, shield-with-check
+icon in `media/icon.svg`) with two tree views:
+
+- **Pending Reviews** (`dpr.pendingView`) — one row per pending request from the
+  live queue (`displayPath`, `mode · toolName`, full path/opened-at/operation in
+  the tooltip). Clicking a row opens that review's editable diff and repeats the
+  decision hint. ✓ / ✗ inline actions decide one row; view-title actions arm
+  Accept All and reject every pending review. The container shows a badge with
+  the pending count while connected.
+- **Review History** (`dpr.historyView`) — the last 50 settled decisions, newest
+  first, persisted in `context.workspaceState` under `dpr.history` as
+  `{requestId, displayPath, toolName, mode, status, outcome, edited, at}`.
+  Statuses: `committed | rejected | conflict | expired | cancelled | failed`.
+  "Clear History" asks for modal confirmation first.
+
+Both views refresh on every queue change and every settled decision; corrupt or
+older history values are ignored rather than failing the view.
+
 ## Commands
 
 | Command | Description |
 |---|---|
 | `dpr.accept` | Accept the active/first pending review (`ctrl+alt+enter` on a `dpr:` editor). |
 | `dpr.reject` | Reject the active/first pending review (`ctrl+alt+backspace` on a `dpr:` editor). |
-| `dpr.showPending` | Quick pick of pending reviews; opens/focuses its diff. |
+| `dpr.acceptItem` / `dpr.rejectItem` | Decide one pending row (inline tree actions). |
+| `dpr.openItem` | Open one pending review's diff by `requestId` (tree row click). |
+| `dpr.showPending` | Quick pick of pending reviews; also reveals the Pending Reviews view. |
 | `dpr.reconnect` | Reconnect to the Host immediately. |
 | `dpr.acceptAll` | Arm/disarm the auto-accept window (requires `dpr.autoAccept`). |
+| `dpr.rejectAll` | Sequentially reject every pending review (disarms auto-accept; reports a summary). |
+| `dpr.clearHistory` | Confirm and clear the persisted review history. |
 | `dpr.runSelfTest` | Run the in-process mock-Host self-test and write `.spike/ext-selftest.json`. |
 
 ## Settings
@@ -44,7 +68,7 @@ writes to the workspace; the extension never commits anything itself.
 ## Self-test
 
 `dpr.runSelfTest` starts a **mock Host** on a temporary Unix socket, writes a
-real token file, connects the real IPC client/`ReviewSession`, and runs two
+real token file, connects the real IPC client/`ReviewSession`, and runs three
 scenarios:
 
 1. **accept-with-edit** — the mock sends `review/request`; the test applies a
@@ -53,10 +77,14 @@ scenarios:
 2. **reject (new file)** — the mock sends a request for a non-existent file (the
    left side is the empty `dpr:` original); the test calls `dpr.reject` and the
    mock asserts `status === 'reject'` and that no workspace file was created.
+3. **reject-all** — a third request is opened, the real `dpr.rejectAll` command
+   drains it, and the test asserts the pending tree provider went empty.
 
-A JSON report `{ok, vscodeVersion, steps, error?}` is written to
-`<workspace>/.spike/ext-selftest.json`. The test also runs automatically ~2 s
-after activation when `<workspace>/.spike` exists.
+It also instantiates both tree providers against the running session, appends a
+synthetic record through the real `ReviewHistoryStore` (then removes it), and
+exercises `dpr.rejectAll`. A JSON report `{ok, vscodeVersion, steps, error?}` is
+written to `<workspace>/.spike/ext-selftest.json`. The test also runs
+automatically ~2 s after activation when `<workspace>/.spike` exists.
 
 ## Build
 
@@ -65,4 +93,4 @@ node build.mjs
 ../../node_modules/.bin/vsce package --no-dependencies --allow-missing-repository
 ```
 
-Install the produced VSIX with `code --install-extension deepseek-pre-edit-review-0.1.0.vsix`.
+Install the produced VSIX with `code --install-extension deepseek-pre-edit-review-0.2.0.vsix`.

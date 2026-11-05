@@ -1,0 +1,32 @@
+{
+  "mode": "accept",
+  "connected": true,
+  "hello": {
+    "ok": true,
+    "serverVersion": "0.1.0",
+    "stateDir": "/Users/wuyizhang/.dsh/pre-edit-review"
+  },
+  "requests": [
+    {
+      "requestId": "870e25de-098f-4827-9e4e-b3902f7d6116",
+      "toolName": "str_replace_editor",
+      "displayPath": ".spike/e2e/editor-create.txt",
+      "operation": "update",
+      "mode": "tool-level",
+      "afterLength": 35,
+      "beforeIsNull": false,
+      "decisions": [
+        {
+          "status": "accept",
+          "reply": {
+            "ok": true,
+            "outcome": "committed"
+          }
+        }
+      ]
+    }
+  ],
+  "error": null,
+  "startedAt": "2026-11-05T12:10:44.541Z",
+  "finishedAt": "2026-11-05T12:10:46.872Z"
+}

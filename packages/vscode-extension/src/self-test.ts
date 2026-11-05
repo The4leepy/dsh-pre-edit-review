@@ -41,8 +41,10 @@ import {
   proposalUriFor,
   type DprFileSystemProvider,
 } from './fs-provider.ts'
+import type { HistoryEntry, ReviewHistoryStore } from './history-store.ts'
 import type { Messages } from './i18n.ts'
 import { ReviewSession } from './review-session.ts'
+import { HistoryReviewsProvider, PendingReviewsProvider } from './tree-views.ts'
 import { delay, describeError } from './util.ts'
 
 const SELF_TEST_ID_PREFIX = 'selftest-'
@@ -71,6 +73,8 @@ export interface SelfTestOptions {
   clientVersion: string
   messages: Messages
   provider: DprFileSystemProvider
+  /** Real persistence helper over `context.workspaceState` (Phase 3 history). */
+  history: ReviewHistoryStore
   /** Route the dpr.* commands to the self-test session while it runs. */
   setSession(session: ReviewSession | undefined): void
   log?(message: string): void
@@ -339,6 +343,12 @@ async function waitFor<T>(probe: () => T | undefined, timeoutMs: number, interva
   }
 }
 
+/** Read a tree provider root synchronously-ish, normalising `ProviderResult`. */
+async function childrenOf<T>(provider: vscode.TreeDataProvider<T>): Promise<readonly T[]> {
+  const children = await provider.getChildren()
+  return children ?? []
+}
+
 function findDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
   const target = uri.toString()
   return vscode.workspace.textDocuments.find((document) => document.uri.toString() === target)
@@ -425,8 +435,16 @@ function buildNewFileFixture(directory: string, requestId: string): ReviewReques
 }
 
 /**
- * Run the two-scenario self-test. Always resolves with a report (except when no
- * workspace folder is open, in which case `error` describes that limitation).
+ * Run the mock-Host self-test. Scenarios:
+ *  1. accept with a user edit (proposal document + language + provider save);
+ *  2. reject a new file (empty `dpr:` left side);
+ *  3. reject-all drains a fresh pending review.
+ *
+ * Phase 3 additionally instantiates the real pending/history TreeDataProviders
+ * and exercises the real `ReviewHistoryStore` over the workspace state.
+ *
+ * Always resolves with a report (except when no workspace folder is open, in
+ * which case `error` describes that limitation).
  */
 export async function runExtensionSelfTest(options: SelfTestOptions): Promise<SelfTestReport> {
   const steps: SelfTestStep[] = []
@@ -441,6 +459,8 @@ export async function runExtensionSelfTest(options: SelfTestOptions): Promise<Se
   let tempDir: string | undefined
   let mock: MockHost | undefined
   let session: ReviewSession | undefined
+  let pendingProvider: PendingReviewsProvider | undefined
+  let historyProvider: HistoryReviewsProvider | undefined
 
   try {
     addStep(
@@ -474,6 +494,42 @@ export async function runExtensionSelfTest(options: SelfTestOptions): Promise<Se
     const connected = await mock.waitForClient(CLIENT_WAIT_MS)
     addStep('client-connect', connected, `client authenticated with the mock Host within ${CLIENT_WAIT_MS} ms`)
     if (!connected) throw new Error('the extension IPC client did not complete the hello handshake')
+
+    // ----- Phase 3: tree providers + real history persistence ---------------
+    pendingProvider = new PendingReviewsProvider(() => session, options.messages)
+    historyProvider = new HistoryReviewsProvider(options.history, options.messages)
+    const syntheticHistory: HistoryEntry = {
+      requestId: `${SELF_TEST_ID_PREFIX}history-${randomSuffix()}`,
+      displayPath: 'src/self-test-history.ts',
+      toolName: 'write',
+      mode: 'tool-level',
+      status: 'committed',
+      outcome: 'committed',
+      edited: true,
+      at: Date.now(),
+    }
+    await options.history.append(syntheticHistory)
+    const historyReadBack = options.history.list().find(
+      (entry) => entry.requestId === syntheticHistory.requestId,
+    )
+    const historyRows = await childrenOf(historyProvider)
+    const historyRow = historyRows.find((row) => row.entry.requestId === syntheticHistory.requestId)
+    await options.history.remove(syntheticHistory.requestId)
+    const historyCleaned = !options.history.list().some(
+      (entry) => entry.requestId === syntheticHistory.requestId,
+    )
+    addStep(
+      'history-store',
+      historyReadBack !== undefined &&
+        historyReadBack.status === 'committed' &&
+        historyReadBack.outcome === 'committed' &&
+        historyReadBack.edited === true &&
+        historyRow !== undefined &&
+        historyCleaned,
+      `append/read-back requestId=${syntheticHistory.requestId} read=${historyReadBack?.status ?? 'MISSING'} treeRow=${
+        historyRow !== undefined
+      } cleaned=${historyCleaned}`,
+    )
 
     // ----- scenario 1: accept with a user edit ------------------------------
     const acceptFixture = buildFixture(tempDir, `${SELF_TEST_ID_PREFIX}accept-${randomSuffix()}`)
@@ -538,6 +594,9 @@ export async function runExtensionSelfTest(options: SelfTestOptions): Promise<Se
         : `provider.writeFile received ${saved.content.length} chars containing the marker`,
     )
 
+    // Settle scenario 1 before measuring the pending tree in scenario 2.
+    await waitFor(() => (session?.pendingCount === 0 ? true : undefined), UI_WAIT_MS)
+
     // ----- scenario 2: reject a NEW file (also exercises the dpr: empty left side)
     const rejectFixture = buildNewFileFixture(tempDir, `${SELF_TEST_ID_PREFIX}reject-${randomSuffix()}`)
     mock.setOutcome(rejectFixture.requestId, 'rejected')
@@ -576,6 +635,19 @@ export async function runExtensionSelfTest(options: SelfTestOptions): Promise<Se
       } text=${JSON.stringify(leftText)} (the real file does not exist on disk)`,
     )
 
+    const pendingRows = await childrenOf(pendingProvider)
+    const pendingRow = pendingRows.find((row) => row.requestId === rejectFixture.requestId)
+    addStep(
+      'pending-tree-2',
+      pendingRows.length === 1 &&
+        pendingRow !== undefined &&
+        pendingRow.contextValue === 'pendingReview' &&
+        pendingRow.description === options.messages.pendingPickDescription('tool-level', 'write'),
+      `rows=${pendingRows.length} requestId=${pendingRow?.requestId ?? 'MISSING'} context=${
+        pendingRow?.contextValue ?? 'MISSING'
+      } description=${JSON.stringify(pendingRow?.description ?? null)}`,
+    )
+
     await vscode.commands.executeCommand('dpr.reject', {
       requestId: rejectFixture.requestId,
       reason: 'self-test rejection',
@@ -605,12 +677,83 @@ export async function runExtensionSelfTest(options: SelfTestOptions): Promise<Se
       `new-file target ${rejectFixture.targetPath} exists=${targetExists} (the extension never writes the workspace)`,
     )
 
+    const drained2 = await waitFor(
+      () => (session?.hasPending(rejectFixture.requestId) === false ? true : undefined),
+      UI_WAIT_MS,
+    )
+    const pendingRowsAfterReject = await childrenOf(pendingProvider)
+    addStep(
+      'pending-tree-empty-2',
+      drained2 === true && pendingRowsAfterReject.length === 0,
+      `pending=${session?.pendingCount ?? -1} rows=${pendingRowsAfterReject.length} (empty once decided)`,
+    )
+
+    // ----- scenario 3: dpr.rejectAll drains the pending queue ---------------
+    const rejectAllFixture = buildFixture(tempDir, `${SELF_TEST_ID_PREFIX}rejectall-${randomSuffix()}`)
+    await fs.writeFile(rejectAllFixture.targetPath, rejectAllFixture.before, 'utf8')
+    mock.setOutcome(rejectAllFixture.requestId, 'rejected')
+    mock.sendReviewRequest(rejectAllFixture.params)
+    const openedRejectAll = await waitFor(
+      () => (session?.hasPending(rejectAllFixture.requestId) === true ? true : undefined),
+      UI_WAIT_MS,
+    )
+    addStep(
+      'review-request-3',
+      openedRejectAll === true,
+      `requestId=${rejectAllFixture.requestId} pending=${openedRejectAll === true}`,
+    )
+
+    const rejectAllProposalUri = proposalUriFor(rejectAllFixture.requestId, rejectAllFixture.params.displayPath)
+    const rejectAllDocument = await waitFor(() => findDocument(rejectAllProposalUri), UI_WAIT_MS)
+    addStep(
+      'proposal-document-3',
+      rejectAllDocument !== undefined,
+      `uri=${rejectAllProposalUri.toString()} opened=${rejectAllDocument !== undefined}`,
+    )
+
+    const rejectAllRows = await childrenOf(pendingProvider)
+    const rejectAllRow = rejectAllRows.find((row) => row.requestId === rejectAllFixture.requestId)
+    addStep(
+      'pending-tree-3',
+      rejectAllRow !== undefined && rejectAllRows.length === 1,
+      `rows=${rejectAllRows.length} requestId=${rejectAllRow?.requestId ?? 'MISSING'}`,
+    )
+
+    const pendingBeforeRejectAll = session.pendingCount
+    await vscode.commands.executeCommand('dpr.rejectAll')
+    addStep(
+      'rejectall-command-3',
+      pendingBeforeRejectAll === 1 && session.pendingCount === 0,
+      `dpr.rejectAll resolved; pending before=${pendingBeforeRejectAll} after=${session.pendingCount}`,
+    )
+
+    const decision3 = await mock.waitForDecision(rejectAllFixture.requestId, DECISION_WAIT_MS)
+    addStep(
+      'decision-3',
+      decision3.status === 'reject',
+      `status=${decision3.status} reason=${JSON.stringify(decision3.reason ?? null)}`,
+    )
+
+    const drained3 = await waitFor(() => (session?.pendingCount === 0 ? true : undefined), UI_WAIT_MS)
+    const pendingRowsAfterRejectAll = await childrenOf(pendingProvider)
+    addStep(
+      'rejectall-drained-3',
+      drained3 === true && pendingRowsAfterRejectAll.length === 0 && session.autoAcceptArmed === false,
+      `pending=${session.pendingCount} rows=${pendingRowsAfterRejectAll.length} autoAccept=${session.autoAcceptArmed}`,
+    )
+
     report.ok = steps.every((step) => step.ok)
   } catch (error) {
     report.error = describeError(error)
     addStep('exception', false, report.error)
   } finally {
     options.setSession(undefined)
+    try {
+      pendingProvider?.dispose()
+      historyProvider?.dispose()
+    } catch (error) {
+      log(`self-test tree provider cleanup failed: ${describeError(error)}`)
+    }
     try {
       session?.dispose()
     } catch (error) {

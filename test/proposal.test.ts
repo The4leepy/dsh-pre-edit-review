@@ -20,10 +20,10 @@ function snapshot(overrides: Partial<FileSnapshot> = {}): FileSnapshot {
   }
 }
 
-test('hasProposalBuilder covers write and edit only', () => {
+test('hasProposalBuilder covers write, edit and str_replace_editor', () => {
   assert.equal(hasProposalBuilder('write'), true)
   assert.equal(hasProposalBuilder('edit'), true)
-  assert.equal(hasProposalBuilder('str_replace_editor'), false)
+  assert.equal(hasProposalBuilder('str_replace_editor'), true)
   assert.equal(hasProposalBuilder('bash'), false)
 })
 
@@ -108,14 +108,14 @@ test('edit on a missing file and str_replace_editor are not reviewed', () => {
   assert.equal(missingFile.ok, false)
   if (missingFile.ok || !('passthrough' in missingFile)) throw new Error('expected passthrough')
 
-  const sre = buildProposal({
+  const sreView = buildProposal({
     toolName: 'str_replace_editor',
-    args: { command: 'create', path: 'a.ts', file_text: 'x' },
+    args: { command: 'view', path: '/ws/a.ts' },
     snapshot: snapshot(),
     maxFileBytes: MAX,
   })
-  assert.equal(sre.ok, false)
-  if (sre.ok || !('deny' in sre)) throw new Error('expected deny')
+  assert.equal(sreView.ok, false)
+  if (sreView.ok || !('passthrough' in sreView)) throw new Error('expected passthrough')
 })
 
 test('oversized proposals are denied', () => {

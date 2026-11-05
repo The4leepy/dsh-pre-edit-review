@@ -12,7 +12,7 @@ Agent 提出的每一次文件修改，都先变成一份 **可编辑的左右�
 | Phase 2 / M2 | Host 全链路 + `/review` 命令 + VS Code 客户端 + E2E（59 单测 / 18 项扩展自检 / 6 场景 E2E） | ✅ 完成，见 [docs/m2-status.md](docs/m2-status.md) |
 | M2.1 UX | 审批按钮常驻：编辑器标题栏 ✓/✗（M2.2 起为唯一决策入口） | ✅ 完成 |
 | M2.2 UX | 去除重复入口；状态栏单一高亮指示；通知改为每会话首次一次性引导（无按钮） | ✅ 完成，见 [docs/m2-status.md](docs/m2-status.md#10-m22-ux-再调整用户反馈2026-11-05) |
-| Phase 3 | 多文件队列、历史面板、更多工具提案、i18n | 待开始 |
+| Phase 3 / M3 | 多文件队列视图、历史面板、批量拒绝、`str_replace_editor` 提案、`/review history` | ✅ 完成，见 [docs/m3-status.md](docs/m3-status.md) |
 | Phase 4 | 安全加固、严格模式 UX、崩溃/幂等/伪造测试 | 待开始 |
 | Phase 5 | 安装包与交付文档 | 待开始 |
 

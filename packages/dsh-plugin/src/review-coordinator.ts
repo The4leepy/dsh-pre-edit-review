@@ -91,7 +91,9 @@ export function successValueFor(
     case 'edit':
       return { path, before: before ?? '', after }
     case 'str_replace_editor':
-      return 'The file has been updated successfully.'
+      return operation === 'create'
+        ? `New file created successfully at: ${path}`
+        : `The file ${path} has been edited successfully.`
     default:
       throw new Error(`no success value shape for tool "${toolName}"`)
   }
