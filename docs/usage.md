@@ -17,7 +17,7 @@
 | 入口 | 说明 |
 |---|---|
 | **编辑器标题栏** | diff 激活且有 pending 时，右上角（`⬆️⬇️` 旁）出现 `✓` / `✗` |
-| **快捷键** | `Ctrl+Alt+Enter` 接受 / `Ctrl+Alt+Backspace` 拒绝（diff 聚焦时） |
+| **快捷键** | `Ctrl+Alt+A` 接受 / `Ctrl+Alt+R` 拒绝（推荐，避开与其他扩展冲突）；备用 `Ctrl+Alt+Enter` / `Ctrl+Alt+Backspace` |
 | **状态栏** | 有待审批时盾牌项高亮，点击打开待审批队列 |
 | **活动栏 Pre-edit Review** | Pending Reviews（行内 ✓/✗）、Review History |
 | **命令面板** | `Pre-edit Review: Show Pending Reviews` 等 |

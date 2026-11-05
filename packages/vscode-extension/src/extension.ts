@@ -100,6 +100,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.onDidChangeActiveTextEditor(() => {
       updateProposalContext()
     }),
+    vscode.window.tabGroups.onDidChangeTabs(() => {
+      updateProposalContext()
+    }),
   )
   updateStatusBar()
 
@@ -342,7 +345,13 @@ function updateStatusBar(): void {
 
 /** Keep the `dpr.activeProposal` context key in sync with the focused editor. */
 function updateProposalContext(): void {
-  const active = vscode.window.activeTextEditor?.document.uri.scheme === DPR_SCHEME
+  let active = vscode.window.activeTextEditor?.document.uri.scheme === DPR_SCHEME
+  // In a diff editor the focused side may be the original file; the tab input
+  // is the reliable source for "this tab shows a dpr proposal".
+  const tab = vscode.window.tabGroups.activeTabGroup.activeTab
+  if (!active && tab?.input instanceof vscode.TabInputTextDiff) {
+    active = tab.input.modified.scheme === DPR_SCHEME
+  }
   void vscode.commands.executeCommand('setContext', 'dpr.activeProposal', active)
 }
 

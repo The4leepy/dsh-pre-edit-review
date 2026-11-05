@@ -133,7 +133,7 @@ const en: Messages = {
   accept: 'Accept',
   reject: 'Reject',
   firstReviewHint:
-    'A file change is waiting for review. An editable diff is open — click ✓ or ✗ in the editor title bar (top-right) to accept or reject.',
+    'A file change is waiting for review. An editable diff is open — click ✓ or ✗ in the editor title bar, or press Ctrl+Alt+A (accept) / Ctrl+Alt+R (reject).',
   pendingStatus: (count) => `Pre-edit Review: ${count} pending — click to review`,
   diffTitle: (displayPath) => `Pre-edit Review: ${displayPath}`,
   pendingPickPlaceholder: 'Pending review requests (select one to open its diff)',
@@ -211,7 +211,7 @@ const zhCN: Messages = {
   accept: '接受',
   reject: '拒绝',
   firstReviewHint:
-    '有新的修改等待审阅：已打开可编辑 diff，请点击编辑器右上角的 ✓ / ✗ 按钮决定接受或拒绝。',
+    '有新的修改等待审阅：已打开可编辑 diff，请点击编辑器右上角的 ✓ / ✗ 按钮，或按 Ctrl+Alt+A（接受）/ Ctrl+Alt+R（拒绝）。',
   pendingStatus: (count) => `修改前审阅：${count} 待审批 — 点击审阅`,
   diffTitle: (displayPath) => `修改前审阅：${displayPath}`,
   pendingPickPlaceholder: '待审批请求（选择一项打开对应 diff）',
