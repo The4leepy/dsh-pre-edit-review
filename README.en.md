@@ -1,7 +1,7 @@
 # Pre-edit Review for DeepSeek Harness
 
 <!-- badges -->
-[![CI](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml/badge.svg)](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/The4leepy/dsh-pre-edit-review?display_name=tag)](https://github.com/The4leepy/dsh-pre-edit-review/releases/latest)
+[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/The4leepy.deepseek-pre-edit-review?label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=The4leepy.deepseek-pre-edit-review) [![CI](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml/badge.svg)](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/The4leepy/dsh-pre-edit-review?display_name=tag)](https://github.com/The4leepy/dsh-pre-edit-review/releases/latest)
 
 
 **Unofficial community project — not affiliated with DeepSeek.**
@@ -40,7 +40,11 @@ git clone git@github.com:The4leepy/dsh-pre-edit-review.git
 cd dsh-pre-edit-review
 pnpm install && pnpm run build
 
-scripts/install-extension.sh --build   # VS Code extension first
+# VS Code Marketplace (recommended for users):
+code --install-extension The4leepy.deepseek-pre-edit-review
+
+# or build and install locally:
+scripts/install-extension.sh --build
 scripts/install-plugin.sh              # arms the kill switch, then installs the DSH plugin
 scripts/doctor.sh                      # health check
 # once everything is OK:

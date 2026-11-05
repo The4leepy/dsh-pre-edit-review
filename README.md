@@ -1,7 +1,7 @@
 # DeepSeek Pre-edit Review
 
 <!-- badges -->
-[![CI](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml/badge.svg)](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/The4leepy/dsh-pre-edit-review?display_name=tag)](https://github.com/The4leepy/dsh-pre-edit-review/releases/latest)
+[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/The4leepy.deepseek-pre-edit-review?label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=The4leepy.deepseek-pre-edit-review) [![CI](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml/badge.svg)](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/The4leepy/dsh-pre-edit-review?display_name=tag)](https://github.com/The4leepy/dsh-pre-edit-review/releases/latest)
 
 
 **非官方社区项目（Unofficial）**：与 DeepSeek 官方无隶属关系。仓库：<https://github.com/The4leepy/dsh-pre-edit-review> ｜ [English README](README.en.md) ｜ [安全边界](docs/security.md) ｜ [发布指南](docs/publish.md)
@@ -35,7 +35,7 @@ scripts/doctor.sh                        # 体检
 | Phase 3 / M3 | 多文件队列视图、历史面板、批量拒绝、`str_replace_editor` 提案、`/review history` | ✅ 完成，见 [docs/m3-status.md](docs/m3-status.md) |
 | Phase 4 / M4 | 严格模式整会话 E2E、IPC nonce/帧上限、崩溃对账与演练、`docs/security.md` 定稿 | ✅ 完成，见 [docs/m4-status.md](docs/m4-status.md) |
 | Phase 5 / M5 | 安装/卸载/体检脚本、打包整理（LICENSE/CHANGELOG）、安装/使用/排障文档 + 干净机器清单 | ✅ 完成，见 [docs/m5-status.md](docs/m5-status.md) |
-| 发布 | GitHub 公开仓库 + CI + Release（VSIX/tgz）、npm `dsh-pre-edit-review@0.2.1`、DSH format-1 索引 | ✅（Marketplace 待 PAT），见 [docs/publish.md](docs/publish.md) |
+| 发布 | GitHub 公开仓库 + CI + Release（VSIX/tgz）、npm `dsh-pre-edit-review@0.2.1`、DSH format-1 索引、VS Code Marketplace `The4leepy.deepseek-pre-edit-review@0.2.5` | ✅ 全部完成，见 [docs/publish.md](docs/publish.md) |
 
 ## 验证记录
 
