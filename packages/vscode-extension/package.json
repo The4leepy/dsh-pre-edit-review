@@ -1,7 +1,7 @@
 {
   "name": "deepseek-pre-edit-review",
-  "displayName": "DeepSeek Pre-edit Review (S2 spike)",
-  "description": "S2 spike: an editable vscode.diff whose right side is backed by a custom dpr FileSystemProvider.",
+  "displayName": "DeepSeek Pre-edit Review",
+  "description": "Review and edit agent-proposed file changes in an editable VS Code diff before anything is written to disk.",
   "publisher": "The-4leepy",
   "version": "0.1.0",
   "private": true,
@@ -10,15 +10,70 @@
   },
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onUri"
   ],
   "contributes": {
     "commands": [
       {
-        "command": "dpr.runS2SelfTest",
-        "title": "Run S2 self-test"
+        "command": "dpr.accept",
+        "title": "Pre-edit Review: Accept"
+      },
+      {
+        "command": "dpr.reject",
+        "title": "Pre-edit Review: Reject"
+      },
+      {
+        "command": "dpr.showPending",
+        "title": "Pre-edit Review: Show Pending Reviews"
+      },
+      {
+        "command": "dpr.reconnect",
+        "title": "Pre-edit Review: Reconnect to Host"
+      },
+      {
+        "command": "dpr.acceptAll",
+        "title": "Pre-edit Review: Arm Accept All (auto-accept window)"
+      },
+      {
+        "command": "dpr.runSelfTest",
+        "title": "Pre-edit Review: Run Self-test"
       }
-    ]
+    ],
+    "keybindings": [
+      {
+        "command": "dpr.accept",
+        "key": "ctrl+alt+enter",
+        "mac": "ctrl+alt+enter",
+        "when": "resourceScheme == 'dpr'"
+      },
+      {
+        "command": "dpr.reject",
+        "key": "ctrl+alt+backspace",
+        "mac": "ctrl+alt+backspace",
+        "when": "resourceScheme == 'dpr'"
+      }
+    ],
+    "configuration": {
+      "title": "DeepSeek Pre-edit Review",
+      "properties": {
+        "dpr.stateDir": {
+          "type": "string",
+          "default": "~/.dsh/pre-edit-review",
+          "description": "Directory that contains the Host plugin's Unix socket (ipc.sock) and authentication token (token). Must match the Host plugin's stateDir."
+        },
+        "dpr.autoConnect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Connect to the Host plugin automatically when VS Code starts."
+        },
+        "dpr.autoAccept": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow the dpr.acceptAll command to arm a 5-minute auto-accept window. When enabled, changes arriving while armed are committed without asking."
+        }
+      }
+    }
   },
   "scripts": {
     "build": "node build.mjs",

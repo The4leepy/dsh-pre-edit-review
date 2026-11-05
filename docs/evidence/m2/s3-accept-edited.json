@@ -1,0 +1,32 @@
+{
+  "mode": "accept-edited",
+  "connected": true,
+  "hello": {
+    "ok": true,
+    "serverVersion": "0.1.0",
+    "stateDir": "/Users/wuyizhang/.dsh/pre-edit-review"
+  },
+  "requests": [
+    {
+      "requestId": "bbc11e9b-7f59-45c6-8ef2-4a04159525ed",
+      "toolName": "edit",
+      "displayPath": ".spike/e2e/edit-target.txt",
+      "operation": "update",
+      "mode": "tool-level",
+      "afterLength": 12,
+      "beforeIsNull": false,
+      "decisions": [
+        {
+          "status": "accept-edited",
+          "reply": {
+            "ok": true,
+            "outcome": "committed"
+          }
+        }
+      ]
+    }
+  ],
+  "error": null,
+  "startedAt": "2026-11-05T11:21:52.246Z",
+  "finishedAt": "2026-11-05T11:21:55.545Z"
+}

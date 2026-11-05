@@ -19,16 +19,21 @@ export class StagingStore {
   readonly dir: string
   private readonly now: () => number
 
-  private constructor(options: StagingStoreOptions) {
+  constructor(options: StagingStoreOptions) {
     this.dir = options.dir
     this.now = options.now ?? (() => Date.now())
   }
 
   static async open(options: StagingStoreOptions): Promise<StagingStore> {
     const store = new StagingStore(options)
-    await mkdir(join(store.dir, 'staging'), { recursive: true, mode: 0o700 })
-    await mkdir(join(store.dir, 'audit'), { recursive: true, mode: 0o700 })
+    await store.init()
     return store
+  }
+
+  /** Create the state directories with owner-only permissions. */
+  async init(): Promise<void> {
+    await mkdir(join(this.dir, 'staging'), { recursive: true, mode: 0o700 })
+    await mkdir(join(this.dir, 'audit'), { recursive: true, mode: 0o700 })
   }
 
   private recordPath(requestId: string): string {

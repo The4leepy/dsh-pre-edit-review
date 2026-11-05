@@ -74,7 +74,7 @@ export function isTerminal(state: ReviewState): boolean {
 }
 
 const TRANSITIONS: Readonly<Record<ReviewState, readonly ReviewState[]>> = {
-  pending: ['decided', 'expired', 'cancelled', 'failed'],
+  pending: ['decided', 'rejected', 'expired', 'cancelled', 'failed'],
   decided: ['committed', 'conflict', 'failed'],
   committed: [],
   rejected: [],

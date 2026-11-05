@@ -100,19 +100,20 @@ export interface ApprovalService {
 }
 
 export interface CommandInvocationView {
+  commandId?: string
   agent?: unknown
-  session?: unknown
-  name: string
-  input?: string
+  rawInput: string
   signal?: AbortSignal
 }
+
+export type CommandResultView = { kind: 'success'; text?: string } | { kind: 'error'; text: string }
 
 export interface CommandsService {
   register(definition: {
     name: string
     description: string
-    input?: { hint?: string }
-    handler(invocation: CommandInvocationView): unknown
+    input?: { hint: string; attachments?: boolean }
+    handler(invocation: CommandInvocationView): CommandResultView | Promise<CommandResultView>
   }): () => void
 }
 

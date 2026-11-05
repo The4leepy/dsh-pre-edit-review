@@ -1,0 +1,39 @@
+{
+  "mode": "double-accept",
+  "connected": true,
+  "hello": {
+    "ok": true,
+    "serverVersion": "0.1.0",
+    "stateDir": "/Users/wuyizhang/.dsh/pre-edit-review"
+  },
+  "requests": [
+    {
+      "requestId": "03cfb523-3427-464b-8045-9b9e2fceb875",
+      "toolName": "write",
+      "displayPath": ".spike/e2e/double.txt",
+      "operation": "create",
+      "mode": "tool-level",
+      "afterLength": 19,
+      "beforeIsNull": true,
+      "decisions": [
+        {
+          "status": "accept#1",
+          "reply": {
+            "ok": true,
+            "outcome": "committed"
+          }
+        },
+        {
+          "status": "accept#2",
+          "reply": {
+            "ok": true,
+            "outcome": "already-decided"
+          }
+        }
+      ]
+    }
+  ],
+  "error": null,
+  "startedAt": "2026-11-05T11:22:08.619Z",
+  "finishedAt": "2026-11-05T11:22:09.839Z"
+}

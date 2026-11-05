@@ -1,0 +1,32 @@
+{
+  "mode": "accept",
+  "connected": true,
+  "hello": {
+    "ok": true,
+    "serverVersion": "0.1.0",
+    "stateDir": "/Users/wuyizhang/.dsh/pre-edit-review"
+  },
+  "requests": [
+    {
+      "requestId": "61ed0445-45ce-4d55-b7d0-e073aa047d7a",
+      "toolName": "write",
+      "displayPath": ".spike/e2e/accept.txt",
+      "operation": "create",
+      "mode": "tool-level",
+      "afterLength": 16,
+      "beforeIsNull": true,
+      "decisions": [
+        {
+          "status": "accept",
+          "reply": {
+            "ok": true,
+            "outcome": "committed"
+          }
+        }
+      ]
+    }
+  ],
+  "error": null,
+  "startedAt": "2026-11-05T11:21:45.817Z",
+  "finishedAt": "2026-11-05T11:21:46.175Z"
+}

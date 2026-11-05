@@ -1,0 +1,55 @@
+# dsh-pre-edit-review（DSH Host 插件）
+
+拦截 Agent 的文件写入，把 proposed 内容交给 VS Code 审批，只有用户 Accept 后才通过 `CommitTarget` 写入。
+
+## 安装
+
+```bash
+# 在 DSH 会话里：
+# plugin_manager install_bundle target=<repo>/packages/dsh-plugin
+# 或（CLI 可用时）：dsh plugin --profile desktop add <repo>/packages/dsh-plugin
+```
+
+安装后本 profile 的所有会话生效；VS Code 扩展需同时安装并通过 UDS 连接（见根 README）。
+
+## 配置（`cordis.patch.yml` 条目 `pre-edit-review` 的 config）
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `enabled` | `true` | 总开关；关闭后所有调用直通 |
+| `mode` | `review` | `review` / `off` |
+| `reviewTools` | `["write","edit"]` | 进入审批的工具名 |
+| `exemptTools` | `[]` | 永不审批的工具名 |
+| `unknownToolPolicy` | `deny` | 未知但"像写入"的工具：拒绝还是放行 |
+| `mutationNamePatterns` | 一组正则 | 名字启发式（默认匹配 write/edit/create/delete/rename/…） |
+| `approvalTimeoutMs` | `600000` | 审批超时（超时=拒绝，不写盘） |
+| `maxFileBytes` | `2097152` | 超过则拒绝进入审批 |
+| `fallback` | `deny` | 无 VS Code 客户端时：`deny` 或 `dsh-approval`（走 DSH 自身审批通道，不能编辑内容） |
+| `clientConnectTimeoutMs` | `3000` | 等待客户端连接的时间 |
+| `enableAutoAccept` / `autoAcceptMax` | `true` / `20` | 允许扩展侧"预授权窗口"自动接受 |
+| `stateDir` | `~/.dsh/pre-edit-review` | staging/audit/token/socket 目录（日志与 socket 均为 0600） |
+| `noticeOnUserEdit` | `true` | 用户改过提案时，在工具结果后追加提示让模型重新读取 |
+
+## 会话命令
+
+| 命令 | 作用 |
+|---|---|
+| `/review` | 状态：开关、客户端连接、pending 数、当前文件策略 |
+| `/review on` / `off` | 运行时开关（影响该 profile 的会话） |
+| `/review strict` | 切到 `read-only` 会话策略（唯一不可绕过模式） |
+| `/review balanced` | 切回 `workspace-write` |
+
+## 安全与失败语义
+
+- 任何异常、超时、取消、客户端断开、CAS 冲突 ⇒ **返回 `isError` 且不写盘**，绝不静默覆盖。
+- 审批期间文件被外部修改 ⇒ `FS_STALE_VERSION` ⇒ 冲突错误，要求模型重新读取后重新提案。
+- 提交使用 `replaceIfVersion` / `createIfAbsent`；写入是临时文件 + 原子 rename，保留文件权限。
+- 只接受对既有 `requestId` 的决策；重复决策幂等丢弃（返回 `already-decided`）。
+- 崩溃恢复：启动时把 pending 记录标记为 expired，不重放提交。
+
+## 开发
+
+```bash
+pnpm run build:plugin   # esbuild → dist/index.mjs（无运行时依赖）
+pnpm run check          # typecheck + boundary guard + unit tests
+```

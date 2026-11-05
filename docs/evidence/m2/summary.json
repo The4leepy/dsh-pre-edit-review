@@ -1,0 +1,93 @@
+{
+  "s2-accept.json": {
+    "mode": "accept",
+    "connected": true,
+    "tool": "write",
+    "displayPath": ".spike/e2e/accept.txt",
+    "decisions": [
+      {
+        "status": "accept",
+        "reply": {
+          "ok": true,
+          "outcome": "committed"
+        }
+      }
+    ],
+    "error": null
+  },
+  "s3-accept-edited.json": {
+    "mode": "accept-edited",
+    "connected": true,
+    "tool": "edit",
+    "displayPath": ".spike/e2e/edit-target.txt",
+    "decisions": [
+      {
+        "status": "accept-edited",
+        "reply": {
+          "ok": true,
+          "outcome": "committed"
+        }
+      }
+    ],
+    "error": null
+  },
+  "s4-reject.json": {
+    "mode": "reject",
+    "connected": true,
+    "tool": "write",
+    "displayPath": ".spike/e2e/reject.txt",
+    "decisions": [
+      {
+        "status": "reject",
+        "reply": {
+          "ok": true,
+          "outcome": "rejected"
+        }
+      }
+    ],
+    "error": null
+  },
+  "s5-conflict.json": {
+    "mode": "conflict",
+    "connected": true,
+    "tool": "write",
+    "displayPath": ".spike/e2e/conflict.txt",
+    "decisions": [
+      {
+        "status": "accept",
+        "reply": {
+          "ok": true,
+          "outcome": "conflict",
+          "detail": {
+            "code": "FS_STALE_VERSION",
+            "message": "cannot write \"/Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike/e2e/conflict.txt\": file changed since it was read"
+          }
+        }
+      }
+    ],
+    "error": null
+  },
+  "s6-double.json": {
+    "mode": "double-accept",
+    "connected": true,
+    "tool": "write",
+    "displayPath": ".spike/e2e/double.txt",
+    "decisions": [
+      {
+        "status": "accept#1",
+        "reply": {
+          "ok": true,
+          "outcome": "committed"
+        }
+      },
+      {
+        "status": "accept#2",
+        "reply": {
+          "ok": true,
+          "outcome": "already-decided"
+        }
+      }
+    ],
+    "error": null
+  }
+}

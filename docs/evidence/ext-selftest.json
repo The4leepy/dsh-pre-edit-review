@@ -1,0 +1,96 @@
+{
+  "ok": true,
+  "vscodeVersion": "1.145.0",
+  "steps": [
+    {
+      "name": "trigger",
+      "ok": true,
+      "detail": "auto-run ~2 s after activation; workspace=/Users/wuyizhang/code/save_vs_code_pre-edit_review"
+    },
+    {
+      "name": "mock-host",
+      "ok": true,
+      "detail": "mock Host listening on /var/folders/vd/vpg1pc293zn0gtg58pw3t4bm0000gn/T/dpr-ext-selftest-PUqzr3/ipc.sock"
+    },
+    {
+      "name": "client-connect",
+      "ok": true,
+      "detail": "client authenticated with the mock Host within 8000 ms"
+    },
+    {
+      "name": "review-request-1",
+      "ok": true,
+      "detail": "requestId=selftest-accept-8703740c pending=true"
+    },
+    {
+      "name": "proposal-document-1",
+      "ok": true,
+      "detail": "uri=dpr:/selftest-accept-8703740c/selftest-accept-8703740c.ts opened=true contentLength=23"
+    },
+    {
+      "name": "language-1",
+      "ok": true,
+      "detail": "languageId=typescript (left doc / languageHint=typescript)"
+    },
+    {
+      "name": "apply-edit-1",
+      "ok": true,
+      "detail": "applyEdit=true isDirty=true textContainsMarker=true"
+    },
+    {
+      "name": "accept-command-1",
+      "ok": true,
+      "detail": "executed dpr.accept with the pending requestId"
+    },
+    {
+      "name": "decision-1",
+      "ok": true,
+      "detail": "status=accept finalContentLength=46 containsMarker=true nonceMatches=true"
+    },
+    {
+      "name": "tab-closed-1",
+      "ok": true,
+      "detail": "diff tab closed after accept=true"
+    },
+    {
+      "name": "provider-save-1",
+      "ok": true,
+      "detail": "provider.writeFile received 46 chars containing the marker"
+    },
+    {
+      "name": "review-request-2",
+      "ok": true,
+      "detail": "new-file requestId=selftest-reject-d83bbb5a pending=true"
+    },
+    {
+      "name": "proposal-document-2",
+      "ok": true,
+      "detail": "uri=dpr:/selftest-reject-d83bbb5a/selftest-reject-d83bbb5a-new.ts opened=true"
+    },
+    {
+      "name": "new-file-empty-original",
+      "ok": true,
+      "detail": "left side=dpr:/selftest-reject-d83bbb5a/original/selftest-reject-d83bbb5a-new.ts renderedDocument=true text=\"\" (the real file does not exist on disk)"
+    },
+    {
+      "name": "reject-command-2",
+      "ok": true,
+      "detail": "executed dpr.reject with skipPrompt=true"
+    },
+    {
+      "name": "decision-2",
+      "ok": true,
+      "detail": "status=reject reason=\"self-test rejection\" finalContent=absent"
+    },
+    {
+      "name": "tab-closed-2",
+      "ok": true,
+      "detail": "diff tab closed after reject=true"
+    },
+    {
+      "name": "original-untouched-2",
+      "ok": true,
+      "detail": "new-file target /var/folders/vd/vpg1pc293zn0gtg58pw3t4bm0000gn/T/dpr-ext-selftest-PUqzr3/selftest-reject-d83bbb5a-new.ts exists=false (the extension never writes the workspace)"
+    }
+  ]
+}

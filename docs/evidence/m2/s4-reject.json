@@ -1,0 +1,32 @@
+{
+  "mode": "reject",
+  "connected": true,
+  "hello": {
+    "ok": true,
+    "serverVersion": "0.1.0",
+    "stateDir": "/Users/wuyizhang/.dsh/pre-edit-review"
+  },
+  "requests": [
+    {
+      "requestId": "0d8d679b-0d0e-4723-bd87-c090737a9b70",
+      "toolName": "write",
+      "displayPath": ".spike/e2e/reject.txt",
+      "operation": "update",
+      "mode": "tool-level",
+      "afterLength": 8,
+      "beforeIsNull": false,
+      "decisions": [
+        {
+          "status": "reject",
+          "reply": {
+            "ok": true,
+            "outcome": "rejected"
+          }
+        }
+      ]
+    }
+  ],
+  "error": null,
+  "startedAt": "2026-11-05T11:21:58.658Z",
+  "finishedAt": "2026-11-05T11:22:00.510Z"
+}

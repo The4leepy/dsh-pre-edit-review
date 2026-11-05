@@ -16,6 +16,7 @@ export interface RawPluginConfig {
   autoAcceptMax?: number
   stateDir?: string
   socketPath?: string
+  clientConnectTimeoutMs?: number
   noticeOnUserEdit?: boolean
   auditRetentionDays?: number
 }
@@ -34,6 +35,7 @@ export interface PluginConfig {
   autoAcceptMax: number
   stateDir: string
   socketPath: string
+  clientConnectTimeoutMs: number
   noticeOnUserEdit: boolean
   auditRetentionDays: number
 }
@@ -102,6 +104,7 @@ export function normalizeConfig(raw: unknown): PluginConfig {
     autoAcceptMax: positiveInt(input.autoAcceptMax, 'autoAcceptMax', 20, 1),
     stateDir,
     socketPath,
+    clientConnectTimeoutMs: positiveInt(input.clientConnectTimeoutMs, 'clientConnectTimeoutMs', 3_000, 100),
     noticeOnUserEdit: input.noticeOnUserEdit ?? true,
     auditRetentionDays: positiveInt(input.auditRetentionDays, 'auditRetentionDays', 30, 1),
   }

@@ -2,29 +2,30 @@
  * IPC server (Unix domain socket, JSON-RPC 2.0 over NDJSON).
  *
  * Security posture:
- * - socket file 0600 inside a 0700 directory, plus a 32-byte token written to
- *   `token` (0600); the first frame must be `hello` with that token.
+ * - socket file 0600 inside a 0700 state directory, plus a 32-byte token in
+ *   `<stateDir>/token` (0600); the first frame must be `hello` with that token.
  * - the protocol has no write/commit method: the only mutating method is
- *   `decision`, and it must name an existing pending request + nonce.
+ *   `decision`, and it must name an existing pending request.
  * - one client at a time; a disconnect cancels every pending review.
  *
- * Phase 2 owns the production hardening (frame size caps, heartbeat timeouts,
- * back-pressure). This file stabilises the seams the coordinator codes against.
+ * The decision handler runs *inside* the decision frame handling, so the
+ * extension's reply carries the real commit outcome (committed / conflict / …).
  */
-import { createHash, timingSafeEqual, randomBytes } from 'node:crypto'
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { createServer, type Server, type Socket } from 'node:net'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
+import { connect as netConnect, createServer, type Server, type Socket } from 'node:net'
 import { join } from 'node:path'
 import {
   METHODS,
-  RPC_ERRORS,
   PROTOCOL_VERSION,
+  RPC_ERRORS,
   encodeFrame,
   isAckParams,
   isAutoAcceptParams,
   isDecisionParams,
   isHelloParams,
   splitFrames,
+  type DecisionResult,
   type ReviewRequestParams,
   type RpcResponse,
 } from '../../../shared/src/index.ts'
@@ -37,29 +38,53 @@ export interface ReviewDecision {
   by: 'user' | 'auto'
 }
 
+export interface DecisionHandling {
+  outcome: DecisionResult['outcome']
+  detail?: { code?: string; message?: string }
+}
+
+export type DecisionHandler = (decision: ReviewDecision) => Promise<DecisionHandling>
+
 export interface IpcServerOptions {
   stateDir: string
   socketPath: string
   serverVersion: string
-  now?: () => number
-  /** Called for every accepted/rejected decision; must never throw. */
-  onDecision(decision: ReviewDecision): void
-  /** Called once per request the client cancels or when the client disconnects. */
-  onCancel(requestId: string, reason: string): void
+  handleDecision: DecisionHandler
   onClientChanged?(connected: boolean): void
+  onAutoAccept?(): void
+  now?: () => number
 }
 
 interface Pending {
   requestId: string
-  params: ReviewRequestParams
-  resolve(decision: ReviewDecision): void
+  resolve(value: { decision: ReviewDecision; outcome: DecisionHandling }): void
   reject(error: Error): void
   timer: NodeJS.Timeout
-  signal?: AbortSignal
-  onAbort?: () => void
+  signal: AbortSignal
+  onAbort: () => void
 }
 
-function sha256(text: string): Buffer {
+/** Resolve true when something accepts a connection on `path` right now. */
+function probeSocket(path: string, timeoutMs = 300): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = netConnect(path)
+    const done = (value: boolean): void => {
+      socket.destroy()
+      resolve(value)
+    }
+    const timer = setTimeout(() => done(false), timeoutMs)
+    socket.once('connect', () => {
+      clearTimeout(timer)
+      done(true)
+    })
+    socket.once('error', () => {
+      clearTimeout(timer)
+      done(false)
+    })
+  })
+}
+
+function tokenDigest(text: string): Buffer {
   return createHash('sha256').update(text, 'utf8').digest()
 }
 
@@ -86,29 +111,54 @@ export class IpcServer {
     return this.pending.size
   }
 
-  get tokenValue(): string {
-    return this.token
+  get socketPath(): string {
+    return this.options.socketPath
   }
 
-  /** Prepare the state directory, publish a fresh token and start listening. */
+  /** Create the state directory, publish a fresh token, and listen. */
   async start(): Promise<void> {
     await mkdir(this.options.stateDir, { recursive: true, mode: 0o700 })
     this.token = randomBytes(32).toString('hex')
     const tokenPath = join(this.options.stateDir, 'token')
     await writeFile(tokenPath, this.token, { encoding: 'utf8', mode: 0o600 })
     await chmod(tokenPath, 0o600).catch(() => undefined)
+    await this.listen()
+  }
 
-    this.server = createServer((socket) => this.accept(socket))
-    await new Promise<void>((resolve, reject) => {
-      this.server?.once('error', reject)
-      this.server?.listen(this.options.socketPath, () => resolve())
-    })
+  private async listen(): Promise<void> {
+    const connect = (): Promise<void> =>
+      new Promise<void>((resolve, reject) => {
+        const server = createServer((socket) => this.accept(socket))
+        server.once('error', reject)
+        server.listen(this.options.socketPath, () => {
+          server.removeListener('error', reject)
+          server.on('error', () => undefined)
+          resolve()
+        })
+        this.server = server
+      })
+
+    try {
+      await connect()
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error
+      // Distinguish a crashed Host's stale socket from a live listener.
+      if (await probeSocket(this.options.socketPath)) {
+        throw new Error(
+          `another pre-edit review host is already listening on ${this.options.socketPath}; ` +
+            'share one profile or configure a different stateDir/socketPath',
+        )
+      }
+      await unlink(this.options.socketPath).catch(() => undefined)
+      await connect()
+    }
     await chmod(this.options.socketPath, 0o600).catch(() => undefined)
   }
 
   async stop(): Promise<void> {
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer)
+      pending.signal.removeEventListener('abort', pending.onAbort)
       pending.reject(new Error('IPC server stopped'))
     }
     this.pending.clear()
@@ -119,11 +169,24 @@ export class IpcServer {
       this.server.close(() => resolve())
     })
     this.server = undefined
+    await unlink(this.options.socketPath).catch(() => undefined)
   }
 
-  /** Read the token the extension must present. Used by tooling/tests. */
+  /** Read the token the extension must present (also used by tooling/tests). */
   async readToken(): Promise<string> {
     return readFile(join(this.options.stateDir, 'token'), 'utf8')
+  }
+
+  /** Wait until a client completes the handshake, or the deadline passes. */
+  async waitForClient(timeoutMs: number, signal: AbortSignal): Promise<boolean> {
+    if (this.connected) return true
+    const deadline = this.now() + timeoutMs
+    while (this.now() < deadline) {
+      if (this.connected) return true
+      if (signal.aborted) return false
+      await new Promise<void>((resolve) => setTimeout(resolve, 100))
+    }
+    return this.connected
   }
 
   private accept(socket: Socket): void {
@@ -144,8 +207,11 @@ export class IpcServer {
     const wasConnected = this.connected
     this.socket = undefined
     this.authed = false
-    for (const [requestId, pending] of this.pending) {
-      this.cancel(requestId, 'review client disconnected')
+    const outstanding = [...this.pending.values()]
+    this.pending.clear()
+    for (const pending of outstanding) {
+      clearTimeout(pending.timer)
+      pending.signal.removeEventListener('abort', pending.onAbort)
       pending.reject(new Error('review client disconnected'))
     }
     if (wasConnected) this.options.onClientChanged?.(false)
@@ -181,14 +247,14 @@ export class IpcServer {
 
     if (message?.method === METHODS.hello) {
       if (!isHelloParams(message.params) || message.params.protocolVersion !== PROTOCOL_VERSION) {
-        this.fail(message.id ?? null, RPC_ERRORS.AUTH_FAILED, 'unsupported protocol or malformed hello')
+        this.fail(message?.id ?? null, RPC_ERRORS.AUTH_FAILED, 'unsupported protocol or malformed hello')
         this.socket?.destroy()
         return
       }
-      const presented = Buffer.from(message.params.token, 'utf8')
-      const expected = Buffer.from(this.token, 'utf8')
-      if (presented.length !== expected.length || !timingSafeEqual(sha256(presented.toString()), sha256(expected.toString()))) {
-        this.fail(message.id ?? null, RPC_ERRORS.AUTH_FAILED, 'invalid token')
+      const presented = tokenDigest(message.params.token)
+      const expected = tokenDigest(this.token)
+      if (presented.length !== expected.length || !timingSafeEqual(presented, expected)) {
+        this.fail(message?.id ?? null, RPC_ERRORS.AUTH_FAILED, 'invalid token')
         this.socket?.destroy()
         return
       }
@@ -204,95 +270,105 @@ export class IpcServer {
     }
 
     switch (message?.method) {
-      case METHODS.decision: {
-        if (!isDecisionParams(message.params)) {
-          this.fail(message.id, RPC_ERRORS.INVALID_PARAMS, 'invalid decision params')
-          return
-        }
-        const decision: ReviewDecision = {
-          requestId: message.params.requestId,
-          status: message.params.status,
-          ...(message.params.finalContent !== undefined ? { finalContent: message.params.finalContent } : {}),
-          ...(message.params.reason !== undefined ? { reason: message.params.reason } : {}),
-          by: 'user',
-        }
-        this.settle(decision)
-        this.reply(message.id, { ok: true, outcome: 'pending-commit' })
+      case METHODS.decision:
+        void this.onDecisionFrame(message)
         return
-      }
-      case METHODS.ack: {
+      case METHODS.ack:
         this.reply(message.id, { ok: isAckParams(message.params) })
         return
-      }
-      case METHODS.ping: {
+      case METHODS.ping:
         this.reply(message.id, { pong: true, now: this.now() })
         return
-      }
-      case METHODS.autoAccept: {
-        this.reply(message.id, { ok: isAutoAcceptParams(message.params) })
+      case METHODS.autoAccept:
+        if (isAutoAcceptParams(message.params)) this.options.onAutoAccept?.()
+        this.reply(message.id, { ok: true })
         return
-      }
       default:
         this.fail(message?.id ?? null, RPC_ERRORS.METHOD_NOT_FOUND, `unknown method: ${String(message?.method)}`)
     }
   }
 
-  private settle(decision: ReviewDecision): void {
-    const pending = this.pending.get(decision.requestId)
-    if (pending === undefined) {
-      // Late or duplicate decision: ignored by design (idempotency).
+  private async onDecisionFrame(message: any): Promise<void> {
+    if (!isDecisionParams(message?.params)) {
+      this.fail(message?.id ?? null, RPC_ERRORS.INVALID_PARAMS, 'invalid decision params')
       return
     }
-    this.pending.delete(decision.requestId)
+    const params = message.params
+    const pending = this.pending.get(params.requestId)
+    if (pending === undefined) {
+      this.reply(message.id, { ok: true, outcome: 'already-decided' })
+      return
+    }
+    this.pending.delete(params.requestId)
     clearTimeout(pending.timer)
-    if (pending.signal && pending.onAbort) pending.signal.removeEventListener('abort', pending.onAbort)
-    pending.resolve(decision)
-    this.options.onDecision(decision)
+    pending.signal.removeEventListener('abort', pending.onAbort)
+
+    const decision: ReviewDecision = {
+      requestId: params.requestId,
+      status: params.status,
+      ...(params.finalContent !== undefined ? { finalContent: params.finalContent } : {}),
+      ...(params.reason !== undefined ? { reason: params.reason } : {}),
+      by: 'user',
+    }
+
+    let handling: DecisionHandling
+    try {
+      handling = await this.options.handleDecision(decision)
+    } catch (error) {
+      handling = { outcome: 'failed', detail: { message: error instanceof Error ? error.message : String(error) } }
+    }
+    this.reply(message.id, { ok: true, ...handling })
+    pending.resolve({ decision, outcome: handling })
   }
 
   /**
-   * Ask the client to review one request. Rejects on timeout, abort, or a
-   * disconnect, so the coordinator can fail closed.
+   * Ask the client to review one request.
+   * Resolves only after the decision was handled (so `outcome` is final);
+   * rejects on timeout, abort, disconnect, or server shutdown.
    */
-  request(params: ReviewRequestParams, options: { timeoutMs: number; signal: AbortSignal }): Promise<ReviewDecision> {
-    return new Promise<ReviewDecision>((resolve, reject) => {
+  request(params: ReviewRequestParams, options: { timeoutMs: number; signal: AbortSignal }): Promise<{
+    decision: ReviewDecision
+    outcome: DecisionHandling
+  }> {
+    return new Promise((resolve, reject) => {
       if (!this.connected) {
         reject(new Error('no review client connected'))
         return
       }
-      const timer = setTimeout(() => {
-        this.pending.delete(params.requestId)
-        this.send({ jsonrpc: '2.0', method: METHODS.reviewCancel, params: { requestId: params.requestId, reason: 'timeout' } })
-        reject(new Error(`review timed out after ${options.timeoutMs}ms`))
-      }, options.timeoutMs)
+      if (options.signal.aborted) {
+        reject(new Error('review cancelled'))
+        return
+      }
 
       const onAbort = (): void => {
         this.cancel(params.requestId, 'cancelled')
         reject(new Error('review cancelled'))
       }
-      options.signal.addEventListener('abort', onAbort, { once: true })
+      const timer = setTimeout(() => {
+        this.cancel(params.requestId, 'timeout')
+        reject(new Error(`review timed out after ${options.timeoutMs}ms`))
+      }, options.timeoutMs)
+
       this.pending.set(params.requestId, {
         requestId: params.requestId,
-        params,
         resolve,
         reject,
         timer,
         signal: options.signal,
         onAbort,
       })
-      if (options.signal.aborted) {
-        onAbort()
-        return
-      }
+      options.signal.addEventListener('abort', onAbort, { once: true })
       this.send({ jsonrpc: '2.0', method: METHODS.reviewRequest, params })
     })
   }
 
   /** Withdraw an outstanding request (timeout, cancellation, disconnect). */
   cancel(requestId: string, reason: string): void {
-    if (!this.pending.has(requestId)) return
+    const pending = this.pending.get(requestId)
+    if (pending === undefined) return
     this.pending.delete(requestId)
+    clearTimeout(pending.timer)
+    pending.signal.removeEventListener('abort', pending.onAbort)
     this.send({ jsonrpc: '2.0', method: METHODS.reviewCancel, params: { requestId, reason } })
-    this.options.onCancel(requestId, reason)
   }
 }

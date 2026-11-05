@@ -1,0 +1,5 @@
+{"at":"2026-11-05T11:21:45.873Z","event":"review/committed","requestId":"61ed0445-45ce-4d55-b7d0-e073aa047d7a","displayPath":".spike/e2e/accept.txt","edited":false,"finalSha256":"3616b186fd147152606b382df4b7cb8969ab8f47d85280e0fdd859582d281c50"}
+{"at":"2026-11-05T11:21:55.244Z","event":"review/committed","requestId":"bbc11e9b-7f59-45c6-8ef2-4a04159525ed","displayPath":".spike/e2e/edit-target.txt","edited":true,"finalSha256":"e7234fb108d9cce069f6a9b49daaacf645e375821d02c2480a1a4fd949adfd91"}
+{"at":"2026-11-05T11:22:00.209Z","event":"review/rejected","requestId":"0d8d679b-0d0e-4723-bd87-c090737a9b70","displayPath":".spike/e2e/reject.txt"}
+{"at":"2026-11-05T11:22:06.240Z","event":"review/conflict","requestId":"a9a765e8-b923-48c1-a42a-87c0857bfd5f","code":"FS_STALE_VERSION"}
+{"at":"2026-11-05T11:22:09.535Z","event":"review/committed","requestId":"03cfb523-3427-464b-8045-9b9e2fceb875","displayPath":".spike/e2e/double.txt","edited":false,"finalSha256":"0ce402fccb3f826b564cf79592e1b3707cd6b8f44257e1897dbfca41bf3d4f33"}

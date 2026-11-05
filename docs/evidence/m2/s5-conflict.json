@@ -1,0 +1,37 @@
+{
+  "mode": "conflict",
+  "connected": true,
+  "hello": {
+    "ok": true,
+    "serverVersion": "0.1.0",
+    "stateDir": "/Users/wuyizhang/.dsh/pre-edit-review"
+  },
+  "requests": [
+    {
+      "requestId": "a9a765e8-b923-48c1-a42a-87c0857bfd5f",
+      "toolName": "write",
+      "displayPath": ".spike/e2e/conflict.txt",
+      "operation": "update",
+      "mode": "tool-level",
+      "afterLength": 14,
+      "beforeIsNull": false,
+      "decisions": [
+        {
+          "status": "accept",
+          "reply": {
+            "ok": true,
+            "outcome": "conflict",
+            "detail": {
+              "code": "FS_STALE_VERSION",
+              "message": "cannot write \"/Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike/e2e/conflict.txt\": file changed since it was read"
+            }
+          }
+        }
+      ],
+      "externalWrite": true
+    }
+  ],
+  "error": null,
+  "startedAt": "2026-11-05T11:22:04.407Z",
+  "finishedAt": "2026-11-05T11:22:06.542Z"
+}
