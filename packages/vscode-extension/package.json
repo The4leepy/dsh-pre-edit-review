@@ -1,8 +1,8 @@
 {
   "name": "deepseek-pre-edit-review",
-  "displayName": "DeepSeek Pre-edit Review",
-  "description": "Review and edit agent-proposed file changes in an editable VS Code diff before anything is written to disk.",
-  "publisher": "The-4leepy",
+  "displayName": "Pre-edit Review for DeepSeek Harness",
+  "description": "Unofficial community extension: review agent-proposed file changes as an editable diff before anything is written to disk. Requires the dsh-pre-edit-review DSH Host plugin.",
+  "publisher": "The4leepy",
   "version": "0.2.5",
   "private": true,
   "engines": {
@@ -227,7 +227,30 @@
   },
   "scripts": {
     "build": "node build.mjs",
-    "package": "vsce package --no-dependencies --allow-missing-repository"
+    "package": "vsce package --no-dependencies"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/The4leepy/dsh-pre-edit-review"
+  },
+  "homepage": "https://github.com/The4leepy/dsh-pre-edit-review#readme",
+  "bugs": {
+    "url": "https://github.com/The4leepy/dsh-pre-edit-review/issues"
+  },
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "code-review",
+    "diff",
+    "agent",
+    "approval",
+    "safety"
+  ],
+  "icon": "media/icon.png",
+  "author": {
+    "name": "The4leepy"
+  }
 }

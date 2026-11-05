@@ -108,7 +108,7 @@ else
 fi
 
 if [ -f "$KILL_SWITCH" ]; then
-  report WARN "KILL SWITCH IS ARMED: reviews are bypassed for every tool call; remove $KILL_SWITCH when done"
+  report WARN "KILL SWITCH IS ARMED: reviews are paused for every tool call; remove $KILL_SWITCH when done"
 else
   report PASS "kill switch is off (reviews are active)"
 fi

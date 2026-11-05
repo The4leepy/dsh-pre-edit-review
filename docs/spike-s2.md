@@ -1,7 +1,7 @@
 # S2 Spike 报告 — VS Code「可编辑左右分栏 diff」验证
 
 - 日期：2026-11-05
-- 环境：VS Code **1.145.0**（macOS arm64）、扩展 `The-4leepy.deepseek-pre-edit-review@0.1.0`（本地 VSIX 安装）
+- 环境：VS Code **1.145.0**（macOS arm64）、扩展 `The4leepy.deepseek-pre-edit-review@0.1.0`（本地 VSIX 安装）
 - 方法：扩展激活后自动执行自检（`vscode.diff` + 自定义 `FileSystemProvider`），把结构化结果写入 `.spike/s2-report.json`
 - 结论：**通过（PASS）**。自定义 scheme 作为 diff **右侧（modified）**时是**可编辑文档**：`WorkspaceEdit` 生效、文档变 dirty、`document.save()` 回调 provider `writeFile` 并收到用户编辑后的**完整最终内容**；左侧原文件保持不变。
 
@@ -48,7 +48,7 @@ VS Code 原生 diff 右栏是否能编辑？自定义 `FileSystemProvider`（不
 1. `TextDocument.isReadOnly` 不是公共 API；可编辑性以 `applyEdit`/`writeFile` 为证据，不在产品代码里依赖该字段。
 2. diff 标签页的 `activeTextEditor` 指向 proposal 文档，符合预期；但"关闭指定标签页"需用 `vscode.window.tabGroups.close(tab)`（Phase 2）。
 3. 本 spike 扩展只有自检命令，没有 IPC；Phase 2 在此骨架上接 UDS 客户端与审批队列。
-4. **publisher 偏差**：`vsce` 拒绝下划线，`The_4leepy` 无法打包，实际使用 `The-4leepy`（扩展 ID `The-4leepy.deepseek-pre-edit-review`）。已向用户报告，若必须用 `The_4leepy` 需换打包方式或改 publisher。
+4. **publisher 说明**：当时为规避 `vsce` 的下划线限制使用了 `The-4leepy`；发布前已统一为真实 publisher **`The4leepy`**（扩展 ID `The4leepy.deepseek-pre-edit-review`）。
 5. VS Code 窗口由自检脚本以 `code -n <workspace>` 打开；未改动用户已有窗口。
 
 ## 5. 复现

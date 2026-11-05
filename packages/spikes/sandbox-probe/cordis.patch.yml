@@ -2,4 +2,4 @@
     - id: dpr-sandbox-probe
       name: dpr-sandbox-probe
       config:
-        workspaceRoot: !!js process.env.DPR_SPIKE_WORKSPACE ?? '/Users/wuyizhang/code/save_vs_code_pre-edit_review'
+        workspaceRoot: !!js process.env.DPR_SPIKE_WORKSPACE ?? process.cwd()

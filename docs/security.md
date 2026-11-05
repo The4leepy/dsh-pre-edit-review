@@ -76,13 +76,13 @@
 ### 4.5 暂停审批（`/review off`）
 
 - 只能由**用户在会话命令**里开启（`/review off`）；Agent 的工具、IPC、配置都无法打开。
-- 会话级、内存态（Host 重启复位）、`allowBypass:false` 可整体禁用、每次切换写审计。
+- 会话级、内存态（Host 重启复位）、`allowPause:false` 可整体禁用、每次切换写审计。
 - 只跳过审批，不改沙箱：`read-only` 下即使暂停审批也写不了文件。
 - 状态栏显示 `· 已关闭`，不会静默生效。
 
 ### 4.6 急停开关
 
-- `<stateDir>/DISABLED` 存在时 gate 全量放行（插件故障恢复通道，1s 内生效）。
+- `<stateDir>/DISABLED` 存在时 gate 全量暂停（插件故障恢复通道，1s 内生效）。
 - 该文件需要本机文件写权限；在 `workspace-write`/`read-only` 会话下 Agent 无法创建它（`~/.dsh` 在工作区外）。
 
 ## 5. 已知限制（必须如实对外说明）

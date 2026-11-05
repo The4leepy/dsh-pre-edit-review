@@ -43,7 +43,7 @@ pnpm run build:plugin   ✅ dist/index.mjs (3.5 kb)
 
 | 项 | 说明 |
 |---|---|
-| publisher | `vsce` 要求 `^[a-z0-9][a-z0-9-]*$/i`，`The_4leepy` 含下划线无法打包。实际使用 **`The-4leepy`**（扩展 ID `The-4leepy.deepseek-pre-edit-review`）。若必须用下划线，需要改打包链路或改 publisher。 |
+| publisher | `vsce` 要求 `^[a-z0-9][a-z0-9-]*$/i`；早期曾用 `The-4leepy` 规避下划线，发布前统一为真实的 **`The4leepy`**（扩展 ID `The4leepy.deepseek-pre-edit-review`）。 |
 | PTC 内嵌调用 | 未验证（当前 profile 为 native 模式）。Phase 2 增加用例。 |
 | 严格模式整会话 E2E | 用显式 per-call policy 证明了两方向，未把开发会话整体切 `read-only`（避免自锁）。Phase 4 用可丢弃会话做完整验证。 |
 | Windows/Linux | 未验证；设计不假设 Seatbelt。 |
@@ -52,7 +52,7 @@ pnpm run build:plugin   ✅ dist/index.mjs (3.5 kb)
 ## 5. 环境改动记录（可回滚）
 
 1. 安装并卸载探针 bundle `dpr-spike-probe`（profile `desktop` 已恢复：`package.json`/`cordis.patch.yml`/`node_modules` 均无该条目，遗留软链已手工清理）。
-2. 安装并卸载自检扩展 `the-4leepy.deepseek-pre-edit-review`（VS Code 已无该扩展）。
+2. 安装并卸载自检扩展 `The4leepy.deepseek-pre-edit-review`（VS Code 已无该扩展）。
 3. 打开了一个 VS Code 窗口（`code -n <workspace>`）用于 S2 自检；未改动用户已有窗口。
 4. 会话权限被用户切到 `danger-full-access`（审批 `never`）；本报告中的"显式 per-call 只读策略"验证不依赖该设置。
 

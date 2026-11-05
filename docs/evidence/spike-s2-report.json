@@ -11,7 +11,7 @@
     {
       "name": "create-original",
       "ok": true,
-      "detail": "wrote 18 chars to /Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike/s2-original.txt (\"line1\\nline2\\nline3\\n\")"
+      "detail": "wrote 18 chars to /Users/example/projects/save_vs_code_pre-edit_review/.spike/s2-original.txt (\"line1\\nline2\\nline3\\n\")"
     },
     {
       "name": "register-fs-provider",
@@ -21,7 +21,7 @@
     {
       "name": "open-diff",
       "ok": true,
-      "detail": "vscode.diff(/Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike/s2-original.txt, dpr:/s2/proposal.txt, \"S2 Editable Diff\", {preview:false})"
+      "detail": "vscode.diff(/Users/example/projects/save_vs_code_pre-edit_review/.spike/s2-original.txt, dpr:/s2/proposal.txt, \"S2 Editable Diff\", {preview:false})"
     },
     {
       "name": "document-found",
@@ -66,7 +66,7 @@
     {
       "name": "diff-tab",
       "ok": true,
-      "detail": "dpr diff tab count=1; labels=[\"S2 Editable Diff\"]; allTabs=[{\"groupActive\":true,\"tabs\":[{\"label\":\"plan.md\",\"isActive\":false,\"isDirty\":false,\"input\":{\"kind\":\"object\"}},{\"label\":\"phase1-feasibility.zh-CN.md\",\"isActive\":false,\"isDirty\":false,\"input\":{\"kind\":\"object\"}},{\"label\":\"S2 Editable Diff\",\"isActive\":true,\"isDirty\":true,\"input\":{\"kind\":\"diff\",\"original\":\"file:///Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike/s2-original.txt\",\"modified\":\"dpr:/s2/proposal.txt\"}}]}]"
+      "detail": "dpr diff tab count=1; labels=[\"S2 Editable Diff\"]; allTabs=[{\"groupActive\":true,\"tabs\":[{\"label\":\"plan.md\",\"isActive\":false,\"isDirty\":false,\"input\":{\"kind\":\"object\"}},{\"label\":\"phase1-feasibility.zh-CN.md\",\"isActive\":false,\"isDirty\":false,\"input\":{\"kind\":\"object\"}},{\"label\":\"S2 Editable Diff\",\"isActive\":true,\"isDirty\":true,\"input\":{\"kind\":\"diff\",\"original\":\"file:///Users/example/projects/save_vs_code_pre-edit_review/.spike/s2-original.txt\",\"modified\":\"dpr:/s2/proposal.txt\"}}]}]"
     },
     {
       "name": "document-save",

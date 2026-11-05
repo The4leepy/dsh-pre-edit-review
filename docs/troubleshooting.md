@@ -18,7 +18,7 @@ scripts/doctor.sh
 | 原因 | 处理 |
 |---|---|
 | VS Code 没开 | 打开 VS Code（扩展已装） |
-| 扩展未激活/已禁用 | Reload Window；扩展面板确认 `The-4leepy.deepseek-pre-edit-review` 已启用 |
+| 扩展未激活/已禁用 | Reload Window；扩展面板确认 `The4leepy.deepseek-pre-edit-review` 已启用 |
 | `dpr.autoConnect` 被关闭 | 设置里打开，或命令面板执行 `Pre-edit Review: Reconnect to Host` |
 | Host 插件未运行（socket 不存在） | 按 [install.md](install.md) 重新安装/启用插件；`scripts/doctor.sh` 看 IPC socket |
 

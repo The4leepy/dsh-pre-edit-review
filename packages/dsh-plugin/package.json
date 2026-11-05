@@ -1,9 +1,8 @@
 {
   "name": "dsh-pre-edit-review",
   "version": "0.2.1",
-  "private": true,
   "type": "module",
-  "description": "DeepSeek Pre-edit Review — intercept agent file writes, review them as an editable diff in VS Code, and only commit after the user accepts.",
+  "description": "Unofficial community DSH Host plugin: intercept agent file writes, stage them, and only commit after the user accepts an editable diff in VS Code.",
   "main": "./dist/index.mjs",
   "exports": {
     ".": "./dist/index.mjs",
@@ -23,7 +22,33 @@
     "cordis.patch.yml",
     "locale",
     "package.json",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/The4leepy/dsh-pre-edit-review"
+  },
+  "homepage": "https://github.com/The4leepy/dsh-pre-edit-review#readme",
+  "bugs": {
+    "url": "https://github.com/The4leepy/dsh-pre-edit-review/issues"
+  },
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "code-review",
+    "diff",
+    "agent",
+    "approval",
+    "safety"
+  ],
+  "author": {
+    "name": "The4leepy"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

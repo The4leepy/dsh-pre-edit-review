@@ -41,7 +41,7 @@ scripts/doctor.sh                         # 期望：plugin registered / IPC soc
 rm ~/.dsh/pre-edit-review/DISABLED        # 解除急停，审批开始生效
 ```
 
-> kill switch 存在期间所有审批被旁路（等价放行），**不要长期保留**。
+> kill switch 存在期间所有审批被旁路（等价暂停），**不要长期保留**。
 
 ## 3. 升级
 

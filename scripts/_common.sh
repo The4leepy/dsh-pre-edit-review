@@ -11,7 +11,7 @@ PROFILE_DIR="${DSH_PROFILE_DIR:-$DSH_HOME_DIR/profiles/$PROFILE}"
 STATE_DIR="${DPR_STATE_DIR:-$DSH_HOME_DIR/pre-edit-review}"
 KILL_SWITCH="$STATE_DIR/DISABLED"
 PLUGIN_NAME="dsh-pre-edit-review"
-EXTENSION_ID="the-4leepy.deepseek-pre-edit-review"
+EXTENSION_ID="The4leepy.deepseek-pre-edit-review"
 
 say() { printf '%s\n' "$*"; }
 ok() { printf '  ✔ %s\n' "$*"; }

@@ -12,7 +12,7 @@
   "operation": "update",
   "targetKind": "direct-workspace",
   "displayPath": ".spike-demo/hello.txt",
-  "absolutePath": "/Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike-demo/hello.txt",
+  "absolutePath": "/Users/example/projects/save_vs_code_pre-edit_review/.spike-demo/hello.txt",
   "before": "# Demo file for pre-edit review\n\ndef greet(name):\n    return f\"hello, thats ok, {name}\"\n\nif __name__ == \"__main__\":\n    print(greet(\"world\"))\n",
   "beforeSha256": "14683cd0afa8df463c162e1b40c52f603ff7d841586e30dadfab8c7dcdfe493a",
   "proposed": "# Demo file for pre-edit review\n\ndef greet(name):\n    return f\"hello, thats ok, {name}\"\n\nif __name__ == \"__main__\":\n    print(greet(\"REJECT-ME\"))\n",

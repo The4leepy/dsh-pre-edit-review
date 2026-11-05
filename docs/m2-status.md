@@ -14,7 +14,7 @@
 | `gate.ts` | `tools/execute` prepend 拦截；kill switch；安全定义查找（registry 异常不会拖垮非写工具）；分类异常时仅对写工具 fail-closed |
 | `review-coordinator.ts` | 全链路：cwd→prepare→proposal→staging→等待客户端→IPC 决策→CAS 提交→合成结果；拒绝/超时/断连/冲突全部 fail-closed |
 | `ipc/server.ts` | UDS + NDJSON JSON-RPC；token 鉴权；决策在应答内完成（扩展能拿到真实提交结果）；超时/断连取消；EADDRINUSE 区分"崩溃残留"与"另一实例在听" |
-| `kill-switch.ts` | `~/.dsh/pre-edit-review/DISABLED` 文件热生效（1s 缓存），存在即全量放行 |
+| `kill-switch.ts` | `~/.dsh/pre-edit-review/DISABLED` 文件热生效（1s 缓存），存在即全量暂停 |
 | `staging/store.ts` | 0600 原子写；状态机；崩溃对账（pending→expired，绝不重放提交）；审计 JSONL |
 | `commands.ts`（内嵌） | `/review`、`/review on|off|strict|balanced` |
 | 构造 | 无任何 `@deepseek-ai/*` 运行时依赖，esbuild 单文件 54.7 KB |
@@ -27,7 +27,7 @@
 - `i18n.ts`：中/英双语（按 `vscode.env.language`）。
 - `extension.ts`：6 个命令 + 快捷键（`ctrl+alt+enter` accept / `ctrl+alt+backspace` reject）+ 状态栏。
 - `self-test.ts`：进程内 mock Host 自检（真实 `IpcClient` + 真实 diff + 命令调用）。
-- 产物：`deepseek-pre-edit-review-0.1.0.vsix`（约 81 KB，publisher `The-4leepy`）。
+- 产物：`deepseek-pre-edit-review-0.1.0.vsix`（约 81 KB，publisher `The4leepy`）。
 
 ## 2. 验证结果
 
@@ -122,7 +122,7 @@ staging 最终状态：`committed ×3 / rejected ×1 / conflict ×1 / expired ×
 # 1) 装插件（保持 VS Code 关闭）
 #    DSH 会话里：plugin_manager install_bundle target=<repo>/packages/dsh-plugin
 # 2) 打开装了扩展的 VS Code 并保持窗口
-"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" /Users/wuyizhang/code/save_vs_code_pre-edit_review
+"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" /Users/example/projects/save_vs_code_pre-edit_review
 # 3) 让我（Agent）改一个文件，VS Code 会弹出可编辑 diff：
 #    点 Accept（或先改右栏再 Accept）→ 文件落盘；点 Reject → 文件不变
 ```
@@ -131,7 +131,7 @@ staging 最终状态：`committed ×3 / rejected ×1 / conflict ×1 / expired ×
 
 - `desktop` profile：**已卸载** `dsh-pre-edit-review`（`package.json`/`cordis.patch.yml`/`node_modules` 均无残留），工具调用正常。
 - `~/.dsh/pre-edit-review` 仅剩 token/audit/staging（socket 已随插件卸载移除）。当前会话文件策略为 `workspace-write`，Agent 无法删除工作区外文件；下次安装时插件启动对账会忽略这些历史记录，必要时可在终端 `rm -rf ~/.dsh/pre-edit-review`。
-- VS Code：扩展仍安装（`The-4leepy.deepseek-pre-edit-review`），VS Code 当前未运行。
+- VS Code：扩展仍安装（`The4leepy.deepseek-pre-edit-review`），VS Code 当前未运行。
 - 两个 teammate（`vscode-spike`、`vscode-client`）已完成并停止。
 
 ## 8. Phase 3（M3）下一步

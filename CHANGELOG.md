@@ -20,6 +20,20 @@ All notable changes to **DeepSeek Pre-edit Review** (DSH Host plugin + VS Code e
 
 - Reliable Accept/Reject shortcuts: keybindings now match the extension's own context keys.
 
+## [Extension 0.2.5 / Plugin 0.2.1] — 2026-11-05 (interaction-test follow-ups)
+
+### Changed
+- Extension: decision result messages now appear in the status bar for exactly 5 seconds instead of transient notifications (0.2.2), and the accidental version downgrade was corrected (0.2.5).
+- **Review pause replaces review bypass**: `/review off` pauses review for the current session, `/review on` resumes it;
+  the previous `/review bypass` command and `allowBypass` config key remain accepted as deprecated aliases.
+  Protocol payloads accept both `paused` and legacy `bypass`.
+- Keybindings fixed and expanded: `Ctrl+Alt+A` accept / `Ctrl+Alt+R` reject (plus the legacy `Ctrl+Alt+Enter` / `Ctrl+Alt+Backspace`).
+
+### Fixed
+- Keybindings no longer depend on `resourceScheme == 'dpr'`; they use the extension's own context keys so they work inside the diff editor and avoid other extensions' bindings (0.2.2/0.2.3).
+
+## [Extension 0.2.1] — 2026-11-05 (M3.1)
+
 ## [Extension 0.2.1 / Plugin 0.2.0] — 2026-11-05 (Phase 4)
 
 ### Added

@@ -4,7 +4,7 @@
   "hello": {
     "ok": true,
     "serverVersion": "0.1.0",
-    "stateDir": "/Users/wuyizhang/.dsh/pre-edit-review"
+    "stateDir": "/Users/example/.dsh/pre-edit-review"
   },
   "requests": [
     {

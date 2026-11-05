@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "title": {
+    "en": "DeepSeek Pre-edit Review",
+    "zh-cn": "DeepSeek 修改前审阅"
+  },
+  "description": {
+    "en": "Unofficial plugin index: review agent file changes as an editable diff before they are written.",
+    "zh-cn": "非官方插件索引：Agent 改文件前先进入可编辑 diff 审批。"
+  },
+  "metadata": {
+    "categories": {
+      "safety": {
+        "title": {
+          "en": "Safety",
+          "zh-cn": "安全"
+        }
+      },
+      "review": {
+        "title": {
+          "en": "Code review",
+          "zh-cn": "代码审阅"
+        }
+      }
+    },
+    "labels": {
+      "pre-edit": {
+        "title": {
+          "en": "Pre-edit approval",
+          "zh-cn": "修改前审批"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "dsh-pre-edit-review",
+      "title": {
+        "en": "Pre-edit Review for DeepSeek Harness",
+        "zh-cn": "DeepSeek 修改前审阅"
+      },
+      "description": {
+        "en": "Intercept agent file writes, stage them, and only commit after the user accepts an editable diff in VS Code. Ships the DSH Host plugin; pair it with the The4leepy.deepseek-pre-edit-review VS Code extension.",
+        "zh-cn": "拦截 Agent 的文件写入，暂存后交由用户在 VS Code 的可编辑 diff 中审批；接受后才写入。需配合 The4leepy.deepseek-pre-edit-review 扩展使用。"
+      },
+      "author": "The4leepy",
+      "homepage": "https://github.com/The4leepy/dsh-pre-edit-review#readme",
+      "repository": {
+        "url": "https://github.com/The4leepy/dsh-pre-edit-review"
+      },
+      "icon": "https://raw.githubusercontent.com/The4leepy/dsh-pre-edit-review/main/packages/vscode-extension/media/icon.png",
+      "metadata": {
+        "category": "safety",
+        "keywords": [
+          "deepseek",
+          "deepseek-harness",
+          "dsh",
+          "dsh-plugin",
+          "code-review",
+          "diff",
+          "agent",
+          "approval",
+          "safety"
+        ],
+        "labels": [
+          "pre-edit"
+        ]
+      },
+      "versions": [
+        {
+          "version": "0.2.1",
+          "publishTimestamp": 1793885278,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": ">=0.2.1-rc.5 <0.3.0"
+          }
+        }
+      ]
+    }
+  ]
+}

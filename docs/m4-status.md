@@ -50,7 +50,7 @@
 ### 1.4 文档
 
 - **[docs/security.md](security.md)**：威胁模型、信任边界、保证矩阵（三种模式）、关键机制、已知限制、验证证据索引。
-- README / 插件 README 更新安全边界与放行模式说明。
+- README / 插件 README 更新安全边界与暂停审批说明。
 
 ## 2. 质量门
 
@@ -59,7 +59,7 @@
 | 单元/集成测试 | **86 / 86**（M3 的 75 + IPC 安全 5 + 恢复 6） |
 | `tsc` / `check:boundaries` | 通过 |
 | 插件 bundle | 66.8 KB（新增 recovery、nonce、frame cap） |
-| 扩展 | 0.2.1（M3.1 放行指示；本轮未改） |
+| 扩展 | 0.2.1（M3.1 暂停指示；本轮未改） |
 | 扩展自检 | 27 / 27（VS Code 1.145.0） |
 
 ## 3. plan.md 验收测试对照（最终）
@@ -93,5 +93,5 @@
 
 1. VSIX 与插件包整理：版本号、README、CHANGELOG、LICENSE、`files`/`.vscodeignore` 检查。
 2. 安装/卸载脚本：`scripts/install-plugin.sh`、`install-extension.sh`、`uninstall.sh`（含 kill switch 安全顺序）。
-3. 文档：安装配置、使用说明、故障排查、放行模式/严格模式取舍。
+3. 文档：安装配置、使用说明、故障排查、暂停审批/严格模式取舍。
 4. 干净机器验证清单（含"先 arm kill switch 再安装"的强制流程）。

@@ -11,11 +11,13 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --test \"test/**/*.test.ts\"",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "check": "pnpm run typecheck && pnpm run check:boundaries && pnpm run test",
+    "check": "pnpm run typecheck && pnpm run check:boundaries && pnpm run test && pnpm run check:market",
     "build:plugin": "node packages/dsh-plugin/build.mjs",
     "build:extension": "node packages/vscode-extension/build.mjs",
     "build": "pnpm run build:plugin && pnpm run build:extension",
-    "package:extension": "node packages/vscode-extension/build.mjs && cd packages/vscode-extension && ../../node_modules/.bin/vsce package --no-dependencies --allow-missing-repository"
+    "package:extension": "node packages/vscode-extension/build.mjs && cd packages/vscode-extension && ../../node_modules/.bin/vsce package --no-dependencies",
+    "check:market": "node scripts/check-market-index.mjs market/index.json",
+    "build:market": "node scripts/build-market-index.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -23,5 +25,15 @@
     "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.9.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/The4leepy/dsh-pre-edit-review"
+  },
+  "homepage": "https://github.com/The4leepy/dsh-pre-edit-review#readme",
+  "bugs": {
+    "url": "https://github.com/The4leepy/dsh-pre-edit-review/issues"
+  },
+  "author": "The4leepy",
+  "license": "Apache-2.0"
 }

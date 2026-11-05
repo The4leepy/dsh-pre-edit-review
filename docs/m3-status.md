@@ -96,24 +96,24 @@
 4. 安全边界文档定稿 + `/review status` 文案核对。
 
 
-## 7. M3.1 — 放行模式（review bypass，用户主动开启）
+## 7. M3.1 — 暂停审批（review pause，用户主动开启）
 
 **需求**：用户希望在主动选择的情况下，Agent 可以直接修改代码、不走审批流程（不必每次点接受）。
 
 **设计**：
-- 命令：`/review bypass` 切换、`/review bypass on|off` 明确开关；`/review status` 显示当前会话是否放行。
-- **只能由用户开启**：唯一写入口是会话命令 handlers（Host 从用户输入路由），Agent 的工具、IPC 协议、配置都不能打开它；`allowBypass:false` 可整体禁用。
-- **会话级**：一个会话放行不影响其他会话；扩展状态栏显示 `· 放行 / · bypass`。
+- 命令：`/review off` 切换、`/review off|on` 明确开关；`/review status` 显示当前会话是否暂停。
+- **只能由用户开启**：唯一写入口是会话命令 handlers（Host 从用户输入路由），Agent 的工具、IPC 协议、配置都不能打开它；`allowPause:false` 可整体禁用。
+- **会话级**：一个会话暂停不影响其他会话；扩展状态栏显示 `· 已关闭`。
 - **内存态**：Host 重启后自动复位为"审批开启"（fail safe）。
-- **只跳过审批，不改沙箱**：`read-only` 会话即使放行也依然无法写文件。
-- **可审计**：每次切换写 `review/bypass-on|off` 审计事件（只含 sessionId）。
-- 协议增量：`hello` 结果新增可选 `bypass` 字段 + 服务端通知 `review/mode {bypass}`（向后兼容的加性字段，未升级协议版本号；两端同仓库发布）。
+- **只跳过审批，不改沙箱**：`read-only` 会话即使暂停也依然无法写文件。
+- **可审计**：每次切换写 `review/paused|resumed` 审计事件（只含 sessionId）。
+- 协议增量：`hello` 结果新增可选 `paused` 字段 + 服务端通知 `review/mode {paused}`（向后兼容的加性字段，未升级协议版本号；两端同仓库发布）。
 
 **验证**：
-- 新增 `test/bypass.test.ts`（5 例）：registry 会话隔离/清除、`review/mode` 校验、`allowBypass` 默认与关闭、gate 对放行会话直通、另一会话仍走审批。
+- 新增 `test/pause.test.ts`（5 例）：registry 会话隔离/清除、`review/mode` 校验、`allowPause` 默认与关闭、gate 对暂停会话直通、另一会话仍走审批。
 - 全套 **75 / 75** 通过；`tsc`、边界检查、插件 bundle（63.8 KB）、扩展 0.2.1 构建通过。
 - 扩展自检 **27 / 27** 通过（VS Code 1.145.0）。
 
-**未验证**：`/review bypass` 命令需用户实际输入一次（Agent 无法触发用户命令）；扩展状态栏 `· 放行` 的视觉效果需目视。
+**未验证**：`/review off` 命令需用户实际输入一次（Agent 无法触发用户命令）；扩展状态栏 `· 暂停` 的视觉效果需目视。
 
 **开发约定（重要）**：本仓库日常开发期间**不安装** `dsh-pre-edit-review` 插件，避免 Agent 改项目代码时反复弹审批；联调/E2E 时先 arm `DISABLED` kill switch，结束后卸载并清理状态目录。

@@ -4,7 +4,7 @@
   "hello": {
     "ok": true,
     "serverVersion": "0.1.0",
-    "stateDir": "/Users/wuyizhang/.dsh/pre-edit-review"
+    "stateDir": "/Users/example/.dsh/pre-edit-review"
   },
   "requests": [
     {
@@ -23,7 +23,7 @@
             "outcome": "conflict",
             "detail": {
               "code": "FS_STALE_VERSION",
-              "message": "cannot write \"/Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike/e2e/conflict.txt\": file changed since it was read"
+              "message": "cannot write \"/Users/example/projects/save_vs_code_pre-edit_review/.spike/e2e/conflict.txt\": file changed since it was read"
             }
           }
         }

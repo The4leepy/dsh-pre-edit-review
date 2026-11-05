@@ -5,12 +5,12 @@
     {
       "name": "trigger",
       "ok": true,
-      "detail": "auto-run ~2 s after activation; workspace=/Users/wuyizhang/code/save_vs_code_pre-edit_review"
+      "detail": "auto-run ~2 s after activation; workspace=/Users/example/projects/save_vs_code_pre-edit_review"
     },
     {
       "name": "mock-host",
       "ok": true,
-      "detail": "mock Host listening on /var/folders/vd/vpg1pc293zn0gtg58pw3t4bm0000gn/T/dpr-ext-selftest-Rk8FoL/ipc.sock"
+      "detail": "mock Host listening on /var/folders/vd/vpg1pc293zn0gtg58pw3t4bm0000gn/T/dpr-ext-selftest-Q8vCLT/ipc.sock"
     },
     {
       "name": "client-connect",
@@ -20,17 +20,17 @@
     {
       "name": "history-store",
       "ok": true,
-      "detail": "append/read-back requestId=selftest-history-689d9642 read=committed treeRow=true cleaned=true"
+      "detail": "append/read-back requestId=selftest-history-8a53a582 read=committed treeRow=true cleaned=true"
     },
     {
       "name": "review-request-1",
       "ok": true,
-      "detail": "requestId=selftest-accept-ce000dbe pending=true"
+      "detail": "requestId=selftest-accept-08258106 pending=true"
     },
     {
       "name": "proposal-document-1",
       "ok": true,
-      "detail": "uri=dpr:/selftest-accept-ce000dbe/selftest-accept-ce000dbe.ts opened=true contentLength=23"
+      "detail": "uri=dpr:/selftest-accept-08258106/selftest-accept-08258106.ts opened=true contentLength=23"
     },
     {
       "name": "language-1",
@@ -65,22 +65,22 @@
     {
       "name": "review-request-2",
       "ok": true,
-      "detail": "new-file requestId=selftest-reject-8c9a8af9 pending=true"
+      "detail": "new-file requestId=selftest-reject-39b0671e pending=true"
     },
     {
       "name": "proposal-document-2",
       "ok": true,
-      "detail": "uri=dpr:/selftest-reject-8c9a8af9/selftest-reject-8c9a8af9-new.ts opened=true"
+      "detail": "uri=dpr:/selftest-reject-39b0671e/selftest-reject-39b0671e-new.ts opened=true"
     },
     {
       "name": "new-file-empty-original",
       "ok": true,
-      "detail": "left side=dpr:/selftest-reject-8c9a8af9/original/selftest-reject-8c9a8af9-new.ts renderedDocument=true text=\"\" (the real file does not exist on disk)"
+      "detail": "left side=dpr:/selftest-reject-39b0671e/original/selftest-reject-39b0671e-new.ts renderedDocument=true text=\"\" (the real file does not exist on disk)"
     },
     {
       "name": "pending-tree-2",
       "ok": true,
-      "detail": "rows=1 requestId=selftest-reject-8c9a8af9 context=pendingReview description=\"tool-level · write\""
+      "detail": "rows=1 requestId=selftest-reject-39b0671e context=pendingReview description=\"tool-level · write\""
     },
     {
       "name": "reject-command-2",
@@ -100,7 +100,7 @@
     {
       "name": "original-untouched-2",
       "ok": true,
-      "detail": "new-file target /var/folders/vd/vpg1pc293zn0gtg58pw3t4bm0000gn/T/dpr-ext-selftest-Rk8FoL/selftest-reject-8c9a8af9-new.ts exists=false (the extension never writes the workspace)"
+      "detail": "new-file target /var/folders/vd/vpg1pc293zn0gtg58pw3t4bm0000gn/T/dpr-ext-selftest-Q8vCLT/selftest-reject-39b0671e-new.ts exists=false (the extension never writes the workspace)"
     },
     {
       "name": "pending-tree-empty-2",
@@ -110,17 +110,17 @@
     {
       "name": "review-request-3",
       "ok": true,
-      "detail": "requestId=selftest-rejectall-0fc35224 pending=true"
+      "detail": "requestId=selftest-rejectall-1f0668b0 pending=true"
     },
     {
       "name": "proposal-document-3",
       "ok": true,
-      "detail": "uri=dpr:/selftest-rejectall-0fc35224/selftest-rejectall-0fc35224.ts opened=true"
+      "detail": "uri=dpr:/selftest-rejectall-1f0668b0/selftest-rejectall-1f0668b0.ts opened=true"
     },
     {
       "name": "pending-tree-3",
       "ok": true,
-      "detail": "rows=1 requestId=selftest-rejectall-0fc35224"
+      "detail": "rows=1 requestId=selftest-rejectall-1f0668b0"
     },
     {
       "name": "rejectall-command-3",

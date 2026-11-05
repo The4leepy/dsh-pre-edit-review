@@ -1,5 +1,7 @@
 # DeepSeek Pre-edit Review
 
+**非官方社区项目（Unofficial）**：与 DeepSeek 官方无隶属关系。仓库：<https://github.com/The4leepy/dsh-pre-edit-review> ｜ [English README](README.en.md) ｜ [安全边界](docs/security.md) ｜ [发布指南](docs/publish.md)
+
 Agent 提出的每一次文件修改，都先变成一份 **可编辑的左右分栏 diff**，用户在 VS Code 里改完并点击 **Accept** 之后，文件才真正写入。
 
 > 安全前提：Agent 在审批前不能修改原始文件；严格模式下（会话 `read-only` 沙箱）它连 bash 都写不了。
@@ -7,6 +9,9 @@ Agent 提出的每一次文件修改，都先变成一份 **可编辑的左右�
 ## 快速开始
 
 ```bash
+git clone git@github.com:The4leepy/dsh-pre-edit-review.git
+cd dsh-pre-edit-review && pnpm install && pnpm run build
+
 scripts/install-extension.sh --build     # 装 VS Code 扩展（先）
 scripts/install-plugin.sh                # 装 DSH 插件（先 arm kill switch）
 scripts/doctor.sh                        # 体检
@@ -46,7 +51,7 @@ DSH Host 插件 dsh-pre-edit-review
   └─ CommitTarget.commit   CAS（replaceIfVersion/createIfAbsent）+ 原子写
       │
       ▼
-VS Code 扩展（`The-4leepy.deepseek-pre-edit-review`）
+VS Code 扩展（`The4leepy.deepseek-pre-edit-review`）
   ├─ dpr: FileSystemProvider  →  diff 右侧可编辑
   ├─ vscode.diff              →  左 Original / 右 Proposed
   └─ Accept / Reject / 队列 / 状态栏 / 自动接受窗口
@@ -69,6 +74,10 @@ VS Code 扩展（`The-4leepy.deepseek-pre-edit-review`）
 | [docs/usage.md](docs/usage.md) | 审批流程、决策入口、四种运行状态、命令 |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | 十类常见故障与恢复步骤 |
 | [docs/security.md](docs/security.md) | 威胁模型、保证矩阵、已知限制 |
+| [docs/install.md](docs/install.md) | 安装/升级/卸载、干净机器清单 |
+| [docs/publish.md](docs/publish.md) | GitHub / npm / Marketplace / DSH 索引发布步骤 |
+| [market/index.json](market/index.json) | 自托管 DSH format-1 插件索引 |
+| [SECURITY.md](SECURITY.md) / [CONTRIBUTING.md](CONTRIBUTING.md) | 漏洞报告 / 单维护者约定 |
 | [docs/m1-status.md](docs/m1-status.md) … [m5-status.md](docs/m5-status.md) | 各阶段验收 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更 |
 
