@@ -31,8 +31,11 @@ scripts/install-plugin.sh                # 会先 arm kill switch，再安装
 ```
 
 - 有 `dsh` CLI：脚本直接执行 `dsh plugin --profile desktop add <repo>/packages/dsh-plugin`。
-- 也可以直接从发布包安装：DSH 索引 `https://raw.githubusercontent.com/The4leepy/dsh-pre-edit-review/main/market/index.json`、
-  GitHub Release 的 `dsh-pre-edit-review-*.tgz`，或 `plugin_manager install_bundle target=dsh-pre-edit-review@<version>`（npm 发布后）。
+- 也可以直接从发布包安装（推荐，npm 已发布）：
+  - `plugin_manager install_bundle target=dsh-pre-edit-review@0.2.1`
+  - DSH 索引：`https://raw.githubusercontent.com/The4leepy/dsh-pre-edit-review/main/market/index.json`
+  - GitHub Release 的 `dsh-pre-edit-review-*.tgz`
+  - 本地克隆：`plugin_manager install_bundle target=<repo>/packages/dsh-plugin`
 - 打包版 Desktop 没有 `dsh` CLI 时：脚本会 arm kill switch 并打印手动步骤（Web GUI → Plugins 安装本地 bundle，或在会话里执行 `plugin_manager install_bundle target=<绝对路径>`）。
 - 安装后建议重启 DSH Desktop（或等待 HMR 生效）。
 
