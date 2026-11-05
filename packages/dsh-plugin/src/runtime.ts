@@ -8,6 +8,7 @@
 import type { LoggerView, HostContext } from './host.ts'
 import { createBypassRegistry, type BypassRegistry } from './bypass.ts'
 import { IpcServer } from './ipc/server.ts'
+import { reconcileStaging } from './recovery.ts'
 import { ReviewCoordinator } from './review-coordinator.ts'
 import { StagingStore } from './staging/store.ts'
 import { createCommitTarget, createCommitTargetHost } from './targets/index.ts'
@@ -64,6 +65,22 @@ export function createRuntime(ctx: HostContext, config: PluginConfig, logger: Lo
     const expired = await store.expirePending()
     if (expired.length > 0) {
       logger.warn(`[pre-edit-review] marked ${expired.length} pending review(s) expired after restart; nothing was committed`)
+    }
+    try {
+      const counts = await reconcileStaging(
+        store,
+        target,
+        createCommitTargetHost(ctx, process.cwd()),
+        new AbortController().signal,
+      )
+      if (counts.committed > 0 || counts.conflict > 0) {
+        logger.warn(
+          `[pre-edit-review] crash reconciliation: ${counts.committed} accepted review(s) had already landed, ` +
+            `${counts.conflict} conflicted; nothing was re-committed`,
+        )
+      }
+    } catch (error) {
+      logger.error(`[pre-edit-review] crash reconciliation failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   })()
   coordinator.setReady(ready)

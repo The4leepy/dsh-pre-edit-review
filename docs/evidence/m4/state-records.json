@@ -1,0 +1,33 @@
+{
+  "capturedAt": "2026-11-05",
+  "staging": [
+    {
+      "requestId": "695b995d-661b-48e7-a4d9-055722876ae9",
+      "state": "committed",
+      "toolName": "write",
+      "displayPath": ".spike/e2e/strict-approved.txt",
+      "mode": "strict",
+      "decision": "accept",
+      "commitCode": null
+    },
+    {
+      "requestId": "b035c643-edbe-469d-aa01-ddb8059580e1",
+      "state": "expired",
+      "toolName": "write",
+      "displayPath": ".spike/e2e/strict-no-client.txt",
+      "mode": "strict",
+      "decision": null,
+      "commitCode": "NO_CLIENT"
+    }
+  ],
+  "audit": [
+    {
+      "at": "2026-11-05T12:19:46.254Z",
+      "event": "review/committed",
+      "requestId": "695b995d-661b-48e7-a4d9-055722876ae9",
+      "displayPath": ".spike/e2e/strict-approved.txt",
+      "edited": false,
+      "finalSha256": "ced2b3c675ac446e90eeadce00fe9aac014ebab9deaac760a2b7840c90065561"
+    }
+  ]
+}

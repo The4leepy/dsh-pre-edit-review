@@ -41,6 +41,8 @@ export interface ReviewRecord {
   sessionId: string
   sessionLabel: string
   agentId?: string
+  /** Absolute session workspace root at review time (used by crash recovery). */
+  workspaceRoot?: string
   toolName: string
   callId: string
   operation: ReviewOperation

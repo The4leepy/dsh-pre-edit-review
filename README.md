@@ -13,8 +13,8 @@ Agent 提出的每一次文件修改，都先变成一份 **可编辑的左右�
 | M2.1 UX | 审批按钮常驻：编辑器标题栏 ✓/✗（M2.2 起为唯一决策入口） | ✅ 完成 |
 | M2.2 UX | 去除重复入口；状态栏单一高亮指示；通知改为每会话首次一次性引导（无按钮） | ✅ 完成，见 [docs/m2-status.md](docs/m2-status.md#10-m22-ux-再调整用户反馈2026-11-05) |
 | Phase 3 / M3 | 多文件队列视图、历史面板、批量拒绝、`str_replace_editor` 提案、`/review history` | ✅ 完成，见 [docs/m3-status.md](docs/m3-status.md) |
-| Phase 4 | 安全加固、严格模式 UX、崩溃/幂等/伪造测试 | 待开始 |
-| Phase 5 | 安装包与交付文档 | 待开始 |
+| Phase 4 / M4 | 严格模式整会话 E2E、IPC nonce/帧上限、崩溃对账与演练、`docs/security.md` 定稿 | ✅ 完成，见 [docs/m4-status.md](docs/m4-status.md) |
+| Phase 5 | 安装脚本、打包整理、安装/使用/排障文档 | 待开始 |
 
 ## 架构
 
@@ -79,10 +79,10 @@ pnpm run package:extension        # 产出 packages/vscode-extension/*.vsix
   --install-extension packages/vscode-extension/deepseek-pre-edit-review-0.1.0.vsix --force
 ```
 
-## 安全边界（务必阅读）
+## 安全边界（务必阅读，完整版见 [docs/security.md](docs/security.md)）
 
 - 工具级模式**不防** bash / python / sed / 脚本写入；要"审批前绝对不可写"请切换到严格模式（`/review strict`）。
-- 插件安装在 profile 后对该 profile 的**所有会话**生效；CLI/headless 场景没有 VS Code 客户端时会 fail-closed（拒绝写入），可用 `/review off` 或配置 `enabled: false` 关闭。
+- 插件安装在 profile 后对该 profile 的**所有会话**生效；CLI/headless 场景没有 VS Code 客户端时会 fail-closed（拒绝写入），可用 `/review off`、`/review bypass`（仅用户可开）或配置 `enabled: false` 关闭。
 - 崩溃时未审批请求一律保持未提交；重启后 pending 记录标记为 expired，绝不重放提交。
 - 急停开关：`touch ~/.dsh/pre-edit-review/DISABLED` 后 1 秒内所有审批旁路（插件故障时的恢复通道）。
 - **放行模式（用户主动选择）**：在会话里输入 `/review bypass` 开启、`/review bypass off` 关闭。开启后该会话的文件写入**直接执行、不再弹审批**（沙箱策略不变，`read-only` 仍然禁写）；状态栏会显示 `· 放行`，每次切换都写入审计。仅在内存中生效，Host 重启自动恢复审批。

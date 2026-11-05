@@ -58,8 +58,12 @@ export interface IpcServerOptions {
   now?: () => number
 }
 
+/** Hard cap on one NDJSON frame; protects the Host from a hostile/buggy client. */
+const MAX_FRAME_BYTES = 8 * 1024 * 1024
+
 interface Pending {
   requestId: string
+  nonce: string
   resolve(value: { decision: ReviewDecision; outcome: DecisionHandling }): void
   reject(error: Error): void
   timer: NodeJS.Timeout
@@ -225,6 +229,10 @@ export class IpcServer {
     const { lines, rest } = splitFrames(this.buffer)
     this.buffer = rest
     for (const line of lines) this.onFrame(line)
+    if (this.buffer.length > MAX_FRAME_BYTES) {
+      this.fail(null, RPC_ERRORS.INVALID_REQUEST, 'frame exceeds the maximum size')
+      this.socket?.destroy()
+    }
   }
 
   private send(message: unknown): void {
@@ -307,6 +315,12 @@ export class IpcServer {
       this.reply(message.id, { ok: true, outcome: 'already-decided' })
       return
     }
+    // The nonce binds this decision to the exact request we sent; a mismatch is
+    // a forged or stale reply and must not settle the review.
+    if (params.nonce !== pending.nonce) {
+      this.fail(message?.id ?? null, RPC_ERRORS.AUTH_FAILED, 'decision nonce does not match the pending review')
+      return
+    }
     this.pending.delete(params.requestId)
     clearTimeout(pending.timer)
     pending.signal.removeEventListener('abort', pending.onAbort)
@@ -359,6 +373,7 @@ export class IpcServer {
 
       this.pending.set(params.requestId, {
         requestId: params.requestId,
+        nonce: params.nonce,
         resolve,
         reject,
         timer,

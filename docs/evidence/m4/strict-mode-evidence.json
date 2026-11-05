@@ -1,0 +1,69 @@
+{
+  "capturedAt": "2026-11-05",
+  "setup": "session switched to read-only via sandbox probe; plugin mounted with gate active; fake review client used for the approved-commit case",
+  "mode": "read-only",
+  "denials": [
+    {
+      "technique": "bash redirect",
+      "command": "printf 'x' > .spike/e2e/bash-strict-escape.txt",
+      "exitCode": 1,
+      "stderr": "Operation not permitted",
+      "targetCreated": false
+    },
+    {
+      "technique": "python",
+      "command": "python3 -c 'pathlib.Path(...).write_text(...)'",
+      "exitCode": 1,
+      "stderr": "PermissionError: [Errno 1] Operation not permitted",
+      "targetCreated": false
+    },
+    {
+      "technique": "sed -i",
+      "command": "sed -i '' 's/original/changed/' .spike/e2e/strict-sed.txt",
+      "exitCode": 1,
+      "stderr": "sed: ...: Operation not permitted",
+      "fileContentAfter": "original"
+    },
+    {
+      "technique": "sh -c script",
+      "command": "sh -c 'printf x > .spike/e2e/strict-sh.txt'",
+      "exitCode": 1,
+      "stderr": "Operation not permitted",
+      "targetCreated": false
+    },
+    {
+      "technique": "write tool with gate bypassed (kill switch)",
+      "result": "Error: [sandbox: file access denied under read-only mode]",
+      "targetCreated": false,
+      "note": "proves the fs sandbox, not the review gate, blocks the write"
+    },
+    {
+      "technique": "symlink pointing outside the workspace, explicit workspace-write policy",
+      "result": "FS_SANDBOX_DENIED (realpath containment)",
+      "targetCreated": false
+    }
+  ],
+  "allowed": [
+    {
+      "technique": "explicit per-call workspace-write via ctx.fs (commit-service path)",
+      "result": "allowed"
+    },
+    {
+      "technique": "bash under explicit workspace-write policy",
+      "result": "allowed"
+    }
+  ],
+  "noClient": {
+    "result": "fail-closed error; staging record expired with code NO_CLIENT; file not created"
+  },
+  "approvedCommitUnderReadOnly": {
+    "tool": "write",
+    "displayPath": ".spike/e2e/strict-approved.txt",
+    "result": "committed",
+    "fileContent": "APPROVED-UNDER-READ-ONLY\n",
+    "stagingMode": "strict",
+    "decision": "accept",
+    "auditEvent": "review/committed"
+  },
+  "probeCaveat": "The sandbox probe's own 'checks' shell assertions used the deployment fallback policy instead of the session-resolved policy, so that particular run was invalid; the authoritative evidence is the real-tool denial/allow results recorded above."
+}

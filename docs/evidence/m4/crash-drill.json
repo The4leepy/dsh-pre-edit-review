@@ -1,0 +1,26 @@
+{
+  "drill": "simulated crash: pending / decided-landed / decided-mismatch / committed",
+  "records": [
+    {
+      "id": "drill-committed",
+      "state": "committed",
+      "code": null
+    },
+    {
+      "id": "drill-landed",
+      "state": "committed",
+      "code": "RECOVERED_COMMITTED"
+    },
+    {
+      "id": "drill-mismatch",
+      "state": "conflict",
+      "code": "RECOVERED_MISMATCH"
+    },
+    {
+      "id": "drill-pending",
+      "state": "expired",
+      "code": "RECOVERED_PENDING"
+    }
+  ],
+  "fixturesUntouched": true
+}

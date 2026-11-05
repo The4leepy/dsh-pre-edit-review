@@ -215,6 +215,7 @@ export class ReviewCoordinator {
       sessionId: String(session?.id ?? 'unknown'),
       sessionLabel: `${basename(cwd)}#${String(session?.id ?? 'unknown').slice(0, 8)}`,
       ...(exec.agent?.id !== undefined ? { agentId: String(exec.agent.id) } : {}),
+      workspaceRoot: cwd,
       toolName: exec.name,
       callId: String(exec.callId),
       operation: proposal.operation,

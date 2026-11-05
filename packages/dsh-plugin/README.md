@@ -44,6 +44,8 @@
 
 ## 安全与失败语义
 
+完整威胁模型与保证矩阵见 [docs/security.md](../../docs/security.md)。
+
 - 任何异常、超时、取消、客户端断开、CAS 冲突 ⇒ **返回 `isError` 且不写盘**，绝不静默覆盖。
 - 审批期间文件被外部修改 ⇒ `FS_STALE_VERSION` ⇒ 冲突错误，要求模型重新读取后重新提案。
 - 提交使用 `replaceIfVersion` / `createIfAbsent`；写入是临时文件 + 原子 rename，保留文件权限。

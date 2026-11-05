@@ -1,0 +1,21 @@
+{
+  "name": "dpr-sandbox-probe",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Phase 4 spike probe: switch a session to read-only and verify fs/bash/symlink enforcement plus the explicit-policy commit path.",
+  "main": "./dist/index.mjs",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.5 <0.3.0"
+  }
+}
