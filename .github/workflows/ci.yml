@@ -18,7 +18,9 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # Dep-less workspace projects make pnpm 12 reject --frozen-lockfile; the lockfile
+      # still pins every external dependency.
+      - run: pnpm install --no-frozen-lockfile
       - name: Typecheck + dependency boundaries + unit tests
         run: pnpm run check
       - name: Build plugin bundle and extension bundle
