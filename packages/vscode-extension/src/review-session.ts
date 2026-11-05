@@ -97,6 +97,8 @@ export class ReviewSession {
   private autoAcceptTimer: NodeJS.Timeout | undefined
   private autoAcceptUntil: number | undefined
   private disposed = false
+  /** One onboarding hint per VS Code session; decisions live on the title bar. */
+  private firstHintShown = false
 
   constructor(options: ReviewSessionOptions) {
     this.options = options
@@ -371,24 +373,21 @@ export class ReviewSession {
     } else {
       await this.applyLanguage(document, review)
     }
-    if (!this.options.quiet) this.promptReview(review)
+    this.maybeShowFirstReviewHint()
   }
 
-  private promptReview(review: PendingReview): void {
-    const message = this.messages.reviewPrompt(review.params.displayPath)
-    void vscode.window
-      .showInformationMessage(message, this.messages.accept, this.messages.reject)
-      .then(async (choice) => {
-        if (this.pending.get(review.params.requestId) !== review) return
-        if (choice === this.messages.accept) {
-          await this.accept({ requestId: review.params.requestId })
-        } else if (choice === this.messages.reject) {
-          await this.reject({ requestId: review.params.requestId })
-        }
-      })
-      .then(undefined, (error: unknown) => {
-        this.log(`review prompt failed: ${describeError(error)}`)
-      })
+  /**
+   * One-time onboarding hint per VS Code session.
+   *
+   * Decisions live on the persistent editor-title buttons (✓/✗), so the toast
+   * never carries accept/reject actions: newcomers get one short pointer the
+   * first time a review arrives, and it cannot be mistaken for the decision UI.
+   */
+  private maybeShowFirstReviewHint(): void {
+    if (this.options.quiet) return
+    if (this.firstHintShown) return
+    this.firstHintShown = true
+    this.showInfo(this.messages.firstReviewHint)
   }
 
   private async tryAutoAccept(params: ReviewRequestParams): Promise<boolean> {
@@ -669,11 +668,6 @@ export class ReviewSession {
         this.messages.diffTitle(review.params.displayPath),
         { preview: false },
       )
-      // Re-surface the decision buttons when the user explicitly re-opens a
-      // pending review from the queue (the arrival toast may be long gone).
-      if (!this.options.quiet && this.pending.get(review.params.requestId) === review) {
-        this.promptReview(review)
-      }
     } catch (error) {
       this.showWarning(this.messages.openDiffFailed(review.params.displayPath, describeError(error)))
     }
