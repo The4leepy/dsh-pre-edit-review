@@ -82,12 +82,14 @@
 
 **问题**：VS Code 原生通知气泡由 VS Code 控制停留时间，扩展无法设为 5 秒（公开 API 只有 `showInformationMessage`，没有时长参数；设置里也只有 `workbench.notifications.position` / `showInTitleBar`，没有时长项）。
 
-**方案（已实现，扩展 0.2.2）**：
+**方案（已实现，扩展 0.2.5）**：
 - 插件的所有**临时消息**（提交成功/拒绝/冲突/超时/断连/失败等）改为右下角状态栏消息，**精确 5 秒**后消失；`dpr.messageDurationMs` 可调（1000–30000，默认 5000）；警告黄底、错误红底；同时写入输出面板。
 - `dpr.useNativeNotifications = true` 可切回原生通知（时长回归 VS Code 控制）。
 - 需要用户操作的对话框（Accept All 确认、清空历史确认、拒绝理由输入）保持模态/输入框，不自动消失。
 - 空 Pending/History 视图增加 `viewsWelcome` 常驻说明，弥补 5 秒提示太短的问题。
 
-**验证**：`clampMessageDuration` 单测（默认/下限/上限/取整），全套 **88/88** 通过；扩展 0.2.2 打包并在 VS Code 1.145.0 自检 **27/27**。
+**验证**：`clampMessageDuration` 单测（默认/下限/上限/取整），全套 **88/88** 通过；扩展 0.2.5 打包并在 VS Code 1.145.0 自检 **27/27**。
 
 **未验证**：状态栏消息的视觉停留时长与颜色需人工目视（自动化无法断言 VS Code 状态栏 UI）。
+
+**注**：0.2.4 起「放行模式」已按用户选择改为 `/review off` 暂停语义（历史章节中的“放行”为旧称）。
