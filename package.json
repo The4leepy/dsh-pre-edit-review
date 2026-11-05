@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --test \"test/**/*.test.ts\"",
+    "test": "node --experimental-strip-types --test \"test/**/*.test.ts\"",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check": "pnpm run typecheck && pnpm run check:boundaries && pnpm run test && pnpm run check:market",
     "build:plugin": "node packages/dsh-plugin/build.mjs",
