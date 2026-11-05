@@ -220,6 +220,10 @@ npm error 403 Two-factor authentication or granular access token with bypass 2fa
 npm view dsh-pre-edit-review version dist.tarball
 ```
 
+> 首次发布时 registry 里可能出现一个 `0.0.0-stage` 版本：这是 npm 的 staged-publish 暂存版本，
+> 不影响 `latest`（确认 `npm view dsh-pre-edit-review version` 为 `0.2.1` 即可）。
+> 之后再次发布建议使用带 **Bypass 2FA** 的 Granular Token，或在命令里加 `--otp=<动态码>`。
+
 然后推送已生成的 npm 源索引（本地提交 `market: publish 0.2.1 to npm`）：
 
 ```bash

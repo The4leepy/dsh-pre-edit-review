@@ -1,4 +1,4 @@
-// packages/dsh-plugin/src/config.ts
+// src/config.ts
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 var DEFAULT_REVIEW_TOOLS = ["write", "edit", "str_replace_editor"];
@@ -62,7 +62,7 @@ function normalizeConfig(raw) {
   };
 }
 
-// packages/dsh-plugin/src/classifier.ts
+// src/classifier.ts
 function presentsDiff(definition, args) {
   if (definition?.presentCall === void 0) return false;
   try {
@@ -100,11 +100,11 @@ function classify(input) {
   return { action: "pass" };
 }
 
-// packages/dsh-plugin/src/review-coordinator.ts
+// src/review-coordinator.ts
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 
-// packages/shared/src/protocol.ts
+// ../shared/src/protocol.ts
 var PROTOCOL_VERSION = 1;
 var METHODS = {
   hello: "hello",
@@ -173,7 +173,7 @@ function isAckParams(value) {
   return isDict(value) && isStr(value.requestId);
 }
 
-// packages/shared/src/review-record.ts
+// ../shared/src/review-record.ts
 var TRANSITIONS = {
   pending: ["decided", "rejected", "expired", "cancelled", "failed"],
   decided: ["committed", "conflict", "failed"],
@@ -188,7 +188,7 @@ function canTransition(from, to) {
   return TRANSITIONS[from].includes(to);
 }
 
-// packages/shared/src/commit-target.ts
+// ../shared/src/commit-target.ts
 var CommitConflict = class extends Error {
   code;
   constructor(code, message) {
@@ -198,7 +198,7 @@ var CommitConflict = class extends Error {
   }
 };
 
-// packages/shared/src/text.ts
+// ../shared/src/text.ts
 function normalizeLineEndings(content) {
   return content.replaceAll("\r\n", "\n");
 }
@@ -233,7 +233,7 @@ function applyLiteralEdit(content, oldString, newString, replaceAll) {
   return { ok: true, content: content.split(oldNorm).join(newNorm), replacements };
 }
 
-// packages/shared/src/hash.ts
+// ../shared/src/hash.ts
 import { createHash, randomBytes } from "node:crypto";
 function sha256Hex(value) {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -242,7 +242,7 @@ function randomHex(bytes = 32) {
   return randomBytes(bytes).toString("hex");
 }
 
-// packages/dsh-plugin/src/proposal.ts
+// src/proposal.ts
 import { isAbsolute as isAbsolute2 } from "node:path";
 function isString(value) {
   return typeof value === "string";
@@ -362,7 +362,7 @@ function buildEditorProposal(args, snapshot, maxFileBytes) {
   return passthrough(`unknown str_replace_editor command: ${String(command)}`);
 }
 
-// packages/dsh-plugin/src/review-coordinator.ts
+// src/review-coordinator.ts
 function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -761,7 +761,7 @@ function languageHintFor(path) {
   return map[ext];
 }
 
-// packages/dsh-plugin/src/gate.ts
+// src/gate.ts
 function isPassthrough(result) {
   return "passthrough" in result;
 }
@@ -810,7 +810,7 @@ function installGate(deps) {
   );
 }
 
-// packages/dsh-plugin/src/kill-switch.ts
+// src/kill-switch.ts
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 function createKillSwitch(stateDir, cacheMs = 1e3, now = () => Date.now()) {
@@ -834,7 +834,7 @@ function createKillSwitch(stateDir, cacheMs = 1e3, now = () => Date.now()) {
   };
 }
 
-// packages/dsh-plugin/src/pause.ts
+// src/pause.ts
 function createPauseRegistry() {
   const sessions = /* @__PURE__ */ new Set();
   return {
@@ -854,7 +854,7 @@ function createPauseRegistry() {
   };
 }
 
-// packages/dsh-plugin/src/ipc/server.ts
+// src/ipc/server.ts
 import { createHash as createHash2, randomBytes as randomBytes2, timingSafeEqual } from "node:crypto";
 import { chmod, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { connect as netConnect, createServer } from "node:net";
@@ -1152,7 +1152,7 @@ var IpcServer = class {
   }
 };
 
-// packages/dsh-plugin/src/recovery.ts
+// src/recovery.ts
 function snapshotFor(record) {
   return {
     displayPath: record.displayPath,
@@ -1215,7 +1215,7 @@ async function reconcileStaging(store, target, host, signal) {
   return counts;
 }
 
-// packages/dsh-plugin/src/staging/store.ts
+// src/staging/store.ts
 import { chmod as chmod2, mkdir as mkdir2, open, readFile as readFile2, readdir, rename, unlink as unlink2 } from "node:fs/promises";
 import { join as join3 } from "node:path";
 var StagingStore = class _StagingStore {
@@ -1316,7 +1316,7 @@ var StagingStore = class _StagingStore {
   }
 };
 
-// packages/dsh-plugin/src/targets/direct-workspace.ts
+// src/targets/direct-workspace.ts
 import { relative } from "node:path";
 function versionOf(info) {
   return info?.version;
@@ -1410,7 +1410,7 @@ var DirectWorkspaceTarget = class {
   }
 };
 
-// packages/dsh-plugin/src/targets/git-worktree.ts
+// src/targets/git-worktree.ts
 var NotImplementedError = class extends Error {
   code = "NOT_IMPLEMENTED";
   constructor(message) {
@@ -1432,7 +1432,7 @@ var GitWorktreeTarget = class {
   }
 };
 
-// packages/dsh-plugin/src/targets/index.ts
+// src/targets/index.ts
 function createCommitTarget(kind) {
   switch (kind) {
     case "direct-workspace":
@@ -1458,7 +1458,7 @@ function createCommitTargetHost(ctx, cwd) {
   };
 }
 
-// packages/dsh-plugin/src/runtime.ts
+// src/runtime.ts
 var PLUGIN_VERSION = "0.2.1";
 function createRuntime(ctx, config, logger) {
   const store = new StagingStore({ dir: config.stateDir });
@@ -1530,7 +1530,7 @@ function createRuntime(ctx, config, logger) {
   };
 }
 
-// packages/dsh-plugin/src/history.ts
+// src/history.ts
 import { readdir as readdir2, readFile as readFile3 } from "node:fs/promises";
 import { join as join4 } from "node:path";
 function isRecord(value) {
@@ -1592,7 +1592,7 @@ function formatHistory(entries, limit = 10) {
   }).join("\n");
 }
 
-// packages/dsh-plugin/src/index.ts
+// src/index.ts
 var name = "pre-edit-review";
 var inject = ["fs", "tools"];
 var PROMPT_SECTION = `File changes are reviewed before they are written. Call write/edit normally; the user reviews each change as an editable diff in VS Code and may accept it, edit it, or reject it.
