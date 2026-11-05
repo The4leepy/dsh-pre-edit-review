@@ -73,7 +73,7 @@
           "source": {
             "type": "git",
             "url": "https://github.com/The4leepy/dsh-pre-edit-review",
-            "commit": "e525fcff14254c84b5421781e7615f1e4b3fb9a1",
+            "commit": "ab41c756c13ac3ff799b8cf78bebb7434a6e8cd3",
             "path": "packages/dsh-plugin"
           },
           "engines": {
