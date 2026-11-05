@@ -1,5 +1,9 @@
 # Pre-edit Review for DeepSeek Harness
 
+<!-- badges -->
+[![CI](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml/badge.svg)](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/The4leepy/dsh-pre-edit-review?display_name=tag)](https://github.com/The4leepy/dsh-pre-edit-review/releases/latest)
+
+
 **Unofficial community project — not affiliated with DeepSeek.**
 
 Review agent-proposed file changes **before they are written**. The DSH Host plugin intercepts a

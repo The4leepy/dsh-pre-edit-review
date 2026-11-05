@@ -1,5 +1,9 @@
 # DeepSeek Pre-edit Review
 
+<!-- badges -->
+[![CI](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml/badge.svg)](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/The4leepy/dsh-pre-edit-review?display_name=tag)](https://github.com/The4leepy/dsh-pre-edit-review/releases/latest)
+
+
 **非官方社区项目（Unofficial）**：与 DeepSeek 官方无隶属关系。仓库：<https://github.com/The4leepy/dsh-pre-edit-review> ｜ [English README](README.en.md) ｜ [安全边界](docs/security.md) ｜ [发布指南](docs/publish.md)
 
 Agent 提出的每一次文件修改，都先变成一份 **可编辑的左右分栏 diff**，用户在 VS Code 里改完并点击 **Accept** 之后，文件才真正写入。
