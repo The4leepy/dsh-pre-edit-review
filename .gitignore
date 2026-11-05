@@ -5,3 +5,5 @@ dist/
 *.tsbuildinfo
 .DS_Store
 docs/spike-s*-artifacts/
+.spike-demo/
+.spike-archive/

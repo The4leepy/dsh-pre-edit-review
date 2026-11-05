@@ -85,7 +85,7 @@ staging 最终状态：`committed ×3 / rejected ×1 / conflict ×1 / expired ×
 
 ## 4. 未验证 / 已知限制
 
-1. **真实扩展 ↔ 真实插件的同一会话联调**未做：两侧分别用协议一致的 mock 验证（扩展对 mock Host、插件对假客户端）。需要一次人工点击演示（见 §6）。
+1. ~~真实扩展 ↔ 真实插件的同一会话联调~~：**已于 2026-11-05 人工联调通过**，见 §6.1。
 2. `/review` 命令已注册（挂载日志确认），但未通过真实命令通道执行过。
 3. 自动接受（AcceptAll）只在扩展 mock 中验证，未与真实插件串测。
 4. 仅 macOS；Windows/Linux 未验证。
@@ -104,7 +104,19 @@ staging 最终状态：`committed ×3 / rejected ×1 / conflict ×1 / expired ×
   5. 新增 `test/gate.test.ts`（10 个用例）覆盖上述路径，安装前先 arm kill switch。
 - **教训**：任何会挂到 `tools/execute` 的插件，必须先证明"最坏情况下不拖垮工具层"，再装进真实 profile。
 
-## 6. 人工联调演示（待用户执行，约 1 分钟）
+## 6. 人工联调演示（2026-11-05 已执行并通过）
+
+### 6.1 结果（真实插件 ↔ 真实 VS Code 扩展）
+
+| 场景 | 用户操作 | 结果 |
+|---|---|---|
+| Accept + 编辑右栏 | 把 `return f"hello, {name}"` 改成 `return f"hello, thats ok, {name}"` 后点 Accept | 磁盘写入**用户版本**；审计 `edited: true`；模型收到"用户改过提案"通知 |
+| Reject | 点 Reject，理由填写「测试拒绝」 | 工具返回 `Error: The user rejected ... User reason: 测试拒绝`；文件保持 `print(greet("world"))` 不变；审计 `review/rejected` |
+
+证据：`docs/evidence/m2/manual/`（staging 记录 + 审计 JSONL）、`.spike-demo/hello.txt`（保留用户最终版本）。
+安全项复核：socket `0600`、token `0600`；拒绝时无任何写入。
+
+### 6.2 复现步骤
 
 ```bash
 # 1) 装插件（保持 VS Code 关闭）
@@ -118,7 +130,7 @@ staging 最终状态：`committed ×3 / rejected ×1 / conflict ×1 / expired ×
 ## 7. 环境现状
 
 - `desktop` profile：**已卸载** `dsh-pre-edit-review`（`package.json`/`cordis.patch.yml`/`node_modules` 均无残留），工具调用正常。
-- `~/.dsh/pre-edit-review` 状态目录已删除（无残留 staging 内容）。
+- `~/.dsh/pre-edit-review` 仅剩 token/audit/staging（socket 已随插件卸载移除）。当前会话文件策略为 `workspace-write`，Agent 无法删除工作区外文件；下次安装时插件启动对账会忽略这些历史记录，必要时可在终端 `rm -rf ~/.dsh/pre-edit-review`。
 - VS Code：扩展仍安装（`The-4leepy.deepseek-pre-edit-review`），VS Code 当前未运行。
 - 两个 teammate（`vscode-spike`、`vscode-client`）已完成并停止。
 

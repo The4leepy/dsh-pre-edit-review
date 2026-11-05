@@ -1,0 +1,32 @@
+{
+  "requestId": "f527a798-18dc-4a83-b82e-9372085336fd",
+  "nonce": "05670d2a171cce86325c48aa1d2d84faafac0b11672d2a975a25c8ab8f79b407",
+  "protocolVersion": 1,
+  "createdAt": 1793878258519,
+  "expiresAt": 1793878858519,
+  "sessionId": "session-9a0e5f7b-38cb-49d3-b037-3ef02db0f345",
+  "sessionLabel": "save_vs_code_pre-edit_review#session-",
+  "agentId": "session-9a0e5f7b-38cb-49d3-b037-3ef02db0f345",
+  "toolName": "edit",
+  "callId": "call_00_0EIVJWSXKdZLFYtbpACZ6274",
+  "operation": "update",
+  "targetKind": "direct-workspace",
+  "displayPath": ".spike-demo/hello.txt",
+  "absolutePath": "/Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike-demo/hello.txt",
+  "before": "# Demo file for pre-edit review\n\ndef greet(name):\n    return \"hello, \" + name\n\nif __name__ == \"__main__\":\n    print(greet(\"world\"))\n",
+  "beforeSha256": "8076beab3613f43c5cc853bfbb245c5a503111e0b859cc8cd55280a59bd144f3",
+  "proposed": "# Demo file for pre-edit review\n\ndef greet(name):\n    return f\"hello, {name}\"\n\nif __name__ == \"__main__\":\n    print(greet(\"world\"))\n",
+  "proposedSha256": "00f3917d54b314818446e496364ba5d3fbc79c1dec8341ec1d0fc9d23ffb27ad",
+  "lineEndings": "LF",
+  "mode": "tool-level",
+  "state": "committed",
+  "decision": {
+    "status": "accept",
+    "by": "user",
+    "finalContentSha256": "14683cd0afa8df463c162e1b40c52f603ff7d841586e30dadfab8c7dcdfe493a",
+    "decidedAt": 1793878372988
+  },
+  "commit": {
+    "at": 1793878373008
+  }
+}

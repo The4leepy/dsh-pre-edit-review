@@ -1,0 +1,29 @@
+{
+  "requestId": "c487be9f-162b-4981-a541-35fdeee0b1d4",
+  "nonce": "9f7fb4534f52889f357bc814b7947e792e9485e03f268f308fe334ce00be13c0",
+  "protocolVersion": 1,
+  "createdAt": 1793878395401,
+  "expiresAt": 1793878995401,
+  "sessionId": "session-9a0e5f7b-38cb-49d3-b037-3ef02db0f345",
+  "sessionLabel": "save_vs_code_pre-edit_review#session-",
+  "agentId": "session-9a0e5f7b-38cb-49d3-b037-3ef02db0f345",
+  "toolName": "edit",
+  "callId": "call_00_duiNI6YcV5SVZfsZ22N81083",
+  "operation": "update",
+  "targetKind": "direct-workspace",
+  "displayPath": ".spike-demo/hello.txt",
+  "absolutePath": "/Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike-demo/hello.txt",
+  "before": "# Demo file for pre-edit review\n\ndef greet(name):\n    return f\"hello, thats ok, {name}\"\n\nif __name__ == \"__main__\":\n    print(greet(\"world\"))\n",
+  "beforeSha256": "14683cd0afa8df463c162e1b40c52f603ff7d841586e30dadfab8c7dcdfe493a",
+  "proposed": "# Demo file for pre-edit review\n\ndef greet(name):\n    return f\"hello, thats ok, {name}\"\n\nif __name__ == \"__main__\":\n    print(greet(\"REJECT-ME\"))\n",
+  "proposedSha256": "235248c3acad164af8e20c6b590d6c6e90d4f3a835ea0752fe6115e47d135bd0",
+  "lineEndings": "LF",
+  "mode": "tool-level",
+  "state": "rejected",
+  "decision": {
+    "status": "reject",
+    "by": "user",
+    "reason": "测试拒绝",
+    "decidedAt": 1793878421861
+  }
+}

@@ -1,0 +1,2 @@
+{"at":"2026-11-05T11:32:53.014Z","event":"review/committed","requestId":"f527a798-18dc-4a83-b82e-9372085336fd","displayPath":".spike-demo/hello.txt","edited":true,"finalSha256":"14683cd0afa8df463c162e1b40c52f603ff7d841586e30dadfab8c7dcdfe493a"}
+{"at":"2026-11-05T11:33:41.868Z","event":"review/rejected","requestId":"c487be9f-162b-4981-a541-35fdeee0b1d4","displayPath":".spike-demo/hello.txt"}
