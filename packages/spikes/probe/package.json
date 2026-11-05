@@ -1,0 +1,21 @@
+{
+  "name": "dpr-spike-probe",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Phase 1.5 spike probe for DeepSeek Pre-edit Review: tools/execute short-circuit + strict-mode fs/shell enforcement checks.",
+  "main": "./dist/index.mjs",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.5 <0.3.0"
+  }
+}

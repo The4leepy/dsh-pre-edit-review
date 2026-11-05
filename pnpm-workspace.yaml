@@ -1,0 +1,8 @@
+packages:
+  - packages/*
+  - packages/spikes/*
+allowBuilds:
+  '@vscode/vsce-sign': set this to true or false
+  esbuild: set this to true or false
+minimumReleaseAgeExclude:
+  - '@types/vscode@1.145.0'

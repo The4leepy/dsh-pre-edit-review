@@ -1,0 +1,5 @@
+src/**
+build.mjs
+node_modules/**
+.spike/**
+*.vsix

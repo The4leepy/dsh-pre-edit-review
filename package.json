@@ -1,0 +1,27 @@
+{
+  "name": "deepseek-pre-edit-review",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.5.1",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "check": "pnpm run typecheck && pnpm run check:boundaries && pnpm run test",
+    "build:plugin": "node packages/dsh-plugin/build.mjs",
+    "build:extension": "node packages/vscode-extension/build.mjs",
+    "build": "pnpm run build:plugin && pnpm run build:extension",
+    "package:extension": "node packages/vscode-extension/build.mjs && cd packages/vscode-extension && ../../node_modules/.bin/vsce package --no-dependencies --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.145.0",
+    "@vscode/vsce": "^4.1.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0"
+  }
+}

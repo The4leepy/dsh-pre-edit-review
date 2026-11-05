@@ -1,0 +1,27 @@
+{
+  "name": "deepseek-pre-edit-review",
+  "displayName": "DeepSeek Pre-edit Review (S2 spike)",
+  "description": "S2 spike: an editable vscode.diff whose right side is backed by a custom dpr FileSystemProvider.",
+  "publisher": "The-4leepy",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.145.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "dpr.runS2SelfTest",
+        "title": "Run S2 self-test"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "package": "vsce package --no-dependencies --allow-missing-repository"
+  }
+}

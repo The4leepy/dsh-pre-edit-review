@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.vsix
+.spike/
+*.tsbuildinfo
+.DS_Store
+docs/spike-s*-artifacts/

@@ -1,0 +1,11 @@
+# dpr-spike-probe bundle patch: mount the Phase 1.5 probe plugin.
+#
+# workspaceRoot is where the probe writes its evidence and the only tree in
+# which `write` calls are intercepted.
+- insert:
+    - id: dpr-spike-probe
+      name: dpr-spike-probe
+      config:
+        workspaceRoot: !!js process.env.DPR_SPIKE_WORKSPACE ?? '/Users/wuyizhang/code/save_vs_code_pre-edit_review'
+        enableIntercept: true
+        shortCircuitContent: "S1-SHORT-CIRCUIT-OK\n"

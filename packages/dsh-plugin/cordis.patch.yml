@@ -1,0 +1,10 @@
+# dsh-pre-edit-review bundle patch.
+#
+# Every field is optional and has a safe default (fail-closed: a review that
+# cannot reach VS Code is denied rather than silently written).
+- insert:
+    - id: pre-edit-review
+      name: dsh-pre-edit-review
+      config:
+        enabled: true
+        mode: review

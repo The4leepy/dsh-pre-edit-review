@@ -1,0 +1,95 @@
+{
+  "ok": true,
+  "startedAt": "2026-11-05T10:59:11.396Z",
+  "vscodeVersion": "1.145.0",
+  "steps": [
+    {
+      "name": "trigger",
+      "ok": true,
+      "detail": "auto-run ~1500 ms after activation"
+    },
+    {
+      "name": "create-original",
+      "ok": true,
+      "detail": "wrote 18 chars to /Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike/s2-original.txt (\"line1\\nline2\\nline3\\n\")"
+    },
+    {
+      "name": "register-fs-provider",
+      "ok": true,
+      "detail": "scheme=dpr; options.isReadonly omitted; seeded dpr:/s2/proposal.txt with 26 chars (\"line1\\nline2 changed\\nline3\\n\")"
+    },
+    {
+      "name": "open-diff",
+      "ok": true,
+      "detail": "vscode.diff(/Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike/s2-original.txt, dpr:/s2/proposal.txt, \"S2 Editable Diff\", {preview:false})"
+    },
+    {
+      "name": "document-found",
+      "ok": true,
+      "detail": "uri=dpr:/s2/proposal.txt; inVisibleTextEditors=true; isDirty=false"
+    },
+    {
+      "name": "document-scheme",
+      "ok": true,
+      "detail": "uri.scheme=dpr (expected dpr)"
+    },
+    {
+      "name": "document-readonly",
+      "ok": true,
+      "detail": "isReadOnly is not present on the public TextDocument API (probe => undefined); editability is proven by applyEdit below"
+    },
+    {
+      "name": "document-content",
+      "ok": true,
+      "detail": "getText().length=26; text=\"line1\\nline2 changed\\nline3\\n\""
+    },
+    {
+      "name": "writable-file-system",
+      "ok": true,
+      "detail": "vscode.workspace.fs.isWritableFileSystem('dpr') => true"
+    },
+    {
+      "name": "apply-edit",
+      "ok": true,
+      "detail": "insert \"S2-USER-EDIT\" at offset 26; vscode.workspace.applyEdit returned true"
+    },
+    {
+      "name": "edit-visible-in-document",
+      "ok": true,
+      "detail": "getText().length=38 (expected 38); endsWithMarker=true; isDirty=true"
+    },
+    {
+      "name": "active-editor",
+      "ok": true,
+      "detail": "activeTextEditor.document.uri=dpr:/s2/proposal.txt"
+    },
+    {
+      "name": "diff-tab",
+      "ok": true,
+      "detail": "dpr diff tab count=1; labels=[\"S2 Editable Diff\"]; allTabs=[{\"groupActive\":true,\"tabs\":[{\"label\":\"plan.md\",\"isActive\":false,\"isDirty\":false,\"input\":{\"kind\":\"object\"}},{\"label\":\"phase1-feasibility.zh-CN.md\",\"isActive\":false,\"isDirty\":false,\"input\":{\"kind\":\"object\"}},{\"label\":\"S2 Editable Diff\",\"isActive\":true,\"isDirty\":true,\"input\":{\"kind\":\"diff\",\"original\":\"file:///Users/wuyizhang/code/save_vs_code_pre-edit_review/.spike/s2-original.txt\",\"modified\":\"dpr:/s2/proposal.txt\"}}]}]"
+    },
+    {
+      "name": "document-save",
+      "ok": true,
+      "detail": "document.save() returned true; isDirty after save=false"
+    },
+    {
+      "name": "provider-writeFile",
+      "ok": true,
+      "detail": "calls=1; lastUri=dpr:/s2/proposal.txt; receivedLength=38; equalsDocumentText=true; receivedContent=\"line1\\nline2 changed\\nline3\\nS2-USER-EDIT\""
+    },
+    {
+      "name": "read-back",
+      "ok": true,
+      "detail": "workspace.fs.readFile(dpr:/s2/proposal.txt) length=38; equalsEditedDocument=true"
+    },
+    {
+      "name": "original-untouched",
+      "ok": true,
+      "detail": "left-side file still contains \"line1\\nline2\\nline3\\n\" (18 chars)"
+    }
+  ],
+  "providerWriteFileCalled": true,
+  "providerWriteFileContent": "line1\nline2 changed\nline3\nS2-USER-EDIT",
+  "error": null
+}
