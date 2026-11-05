@@ -143,5 +143,6 @@ plugin_manager install_bundle target=<本地 packages/dsh-plugin 绝对路径>
 | DSH 索引（git 源） | ✅ 可用 | `market/index.json` 以 commit + `packages/dsh-plugin` 固定，用户添加 raw URL 即可安装 |
 | npm | ⏳ 待登录 | 需要仓库所有者执行一次 `npm login`，然后 `cd packages/dsh-plugin && npm publish --access public`；发布后把 `market/index.json` 的 source 换回 npm（`node scripts/build-market-index.mjs`） |
 | VS Code Marketplace | ⏳ 待 PAT | 需要 publisher `The4leepy` 的 Azure DevOps PAT：`npx @vscode/vsce login The4leepy` 后 `vsce publish`；或只把 VSIX 上传到 GitHub Release |
+| GitHub Release（自动） | ✅ 已配置 | 推送 `v*` tag 时 `.github/workflows/release.yml` 自动构建并附加 VSIX + npm tarball |
 
 > 以上两条需要账号凭据，Agent 不会代为登录或保存 token。

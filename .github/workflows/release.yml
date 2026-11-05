@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm run build
+      - name: Package VSIX and npm tarball
+        run: |
+          cd packages/vscode-extension && ../../node_modules/.bin/vsce package --no-dependencies
+          cd ../dsh-plugin && npm pack --pack-destination ../../packages/vscode-extension
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            packages/vscode-extension/*.vsix
+            packages/vscode-extension/*.tgz
+          generate_release_notes: true
+          body: |
+            Extension and DSH plugin release.
+
+            - Extension: install `*.vsix` with `code --install-extension <file>`
+            - Host plugin: install from npm (`dsh-pre-edit-review`) or from the repository path
+              `packages/dsh-plugin` (see docs/install.md)
