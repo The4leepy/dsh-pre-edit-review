@@ -179,3 +179,50 @@ cd packages/vscode-extension && npx @vscode/vsce publish
 - GitHub Release 里的 `dsh-pre-edit-review-0.2.1.tgz`：`plugin_manager install_bundle target=<绝对路径>/dsh-pre-edit-review-0.2.1.tgz`
 - DSH 索引 raw URL：`https://raw.githubusercontent.com/The4leepy/dsh-pre-edit-review/main/market/index.json`（git 源，当前可用）
 - 本地克隆：`plugin_manager install_bundle target=<repo>/packages/dsh-plugin`
+
+
+## 9. npm 发布被 2FA / E403 拒绝怎么办
+
+现象：
+
+```
+npm error code E403
+npm error 403 403 Forbidden - PUT https://registry.npmjs.org/dsh-pre-edit-review
+npm error 403 Two-factor authentication or granular access token with bypass 2fa enabled is required to publish packages.
+```
+
+原因：npm 账号启用了 2FA（auth-and-writes），**登录成功不等于发布通过**；发布这一步仍需要动态码或带 2FA bypass 的 token。
+
+两种解决方式：
+
+1. **直接用动态码发布**（最快）：
+   ```bash
+   cd packages/dsh-plugin
+   npm publish --access public --otp=123456     # 换成当前 6 位验证码
+   ```
+   `--otp` 有效期很短，失败就换下一组验证码重试。
+
+2. **创建 Granular Access Token（推荐，适合重复发布 / CI）**
+   - npmjs.com → Access Tokens → Generate New Token → **Granular Access Token**；
+   - Permissions: `Read and write`；Packages: 选择 `dsh-pre-edit-review`（或 All packages）；
+   - 勾选 **Bypass two-factor authentication**；
+   - 本机使用（不要粘贴到聊天里、不要提交）：
+     ```bash
+     export NPM_TOKEN=***          # 只在当前 shell
+     npm publish --access public --//registry.npmjs.org/:_authToken="$NPM_TOKEN"
+     unset NPM_TOKEN
+     ```
+     发布后可立刻在 npmjs.com 撤销该 token。
+
+发布成功后验证：
+
+```bash
+npm view dsh-pre-edit-review version dist.tarball
+```
+
+然后推送已生成的 npm 源索引（本地提交 `market: publish 0.2.1 to npm`）：
+
+```bash
+git push origin main
+curl -s https://raw.githubusercontent.com/The4leepy/dsh-pre-edit-review/main/market/index.json | head
+```
