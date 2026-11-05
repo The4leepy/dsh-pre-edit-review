@@ -10,7 +10,7 @@
     {
       "name": "mock-host",
       "ok": true,
-      "detail": "mock Host listening on /var/folders/vd/vpg1pc293zn0gtg58pw3t4bm0000gn/T/dpr-ext-selftest-PUqzr3/ipc.sock"
+      "detail": "mock Host listening on /var/folders/vd/vpg1pc293zn0gtg58pw3t4bm0000gn/T/dpr-ext-selftest-us6FTH/ipc.sock"
     },
     {
       "name": "client-connect",
@@ -20,12 +20,12 @@
     {
       "name": "review-request-1",
       "ok": true,
-      "detail": "requestId=selftest-accept-8703740c pending=true"
+      "detail": "requestId=selftest-accept-cc0dfe7a pending=true"
     },
     {
       "name": "proposal-document-1",
       "ok": true,
-      "detail": "uri=dpr:/selftest-accept-8703740c/selftest-accept-8703740c.ts opened=true contentLength=23"
+      "detail": "uri=dpr:/selftest-accept-cc0dfe7a/selftest-accept-cc0dfe7a.ts opened=true contentLength=23"
     },
     {
       "name": "language-1",
@@ -60,17 +60,17 @@
     {
       "name": "review-request-2",
       "ok": true,
-      "detail": "new-file requestId=selftest-reject-d83bbb5a pending=true"
+      "detail": "new-file requestId=selftest-reject-26c4d3c0 pending=true"
     },
     {
       "name": "proposal-document-2",
       "ok": true,
-      "detail": "uri=dpr:/selftest-reject-d83bbb5a/selftest-reject-d83bbb5a-new.ts opened=true"
+      "detail": "uri=dpr:/selftest-reject-26c4d3c0/selftest-reject-26c4d3c0-new.ts opened=true"
     },
     {
       "name": "new-file-empty-original",
       "ok": true,
-      "detail": "left side=dpr:/selftest-reject-d83bbb5a/original/selftest-reject-d83bbb5a-new.ts renderedDocument=true text=\"\" (the real file does not exist on disk)"
+      "detail": "left side=dpr:/selftest-reject-26c4d3c0/original/selftest-reject-26c4d3c0-new.ts renderedDocument=true text=\"\" (the real file does not exist on disk)"
     },
     {
       "name": "reject-command-2",
@@ -90,7 +90,7 @@
     {
       "name": "original-untouched-2",
       "ok": true,
-      "detail": "new-file target /var/folders/vd/vpg1pc293zn0gtg58pw3t4bm0000gn/T/dpr-ext-selftest-PUqzr3/selftest-reject-d83bbb5a-new.ts exists=false (the extension never writes the workspace)"
+      "detail": "new-file target /var/folders/vd/vpg1pc293zn0gtg58pw3t4bm0000gn/T/dpr-ext-selftest-us6FTH/selftest-reject-26c4d3c0-new.ts exists=false (the extension never writes the workspace)"
     }
   ]
 }

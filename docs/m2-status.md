@@ -140,3 +140,18 @@ staging 最终状态：`committed ×3 / rejected ×1 / conflict ×1 / expired ×
 2. `str_replace_editor` 提案支持（view/create/str_replace/insert）。
 3. 真实联调后的 UI 打磨（关闭/回滚/脏文档提示、语法高亮细节、i18n 文案）。
 4. 审批历史持久化（workspaceState）与 `/review history`。
+
+
+## 9. M2.1 UX 修复（用户反馈，2026-11-05）
+
+**问题**：审批请求到达时右下角通知气泡几秒后消失，用户只能点最右下角"小铃铛"翻历史通知才能 Accept/Reject；新用户不知道去哪点。
+
+**改动**（扩展 `0.1.1`）：
+1. **编辑器标题栏按钮**：diff 处于激活状态且有待审批时，编辑器右上角（`⬆️⬇️` 导航按钮旁）显示 `✓ 接受` / `✗ 拒绝` 两个图标按钮（`contributes.menus["editor/title"]`，`when: dpr.activeProposal && dpr.hasPending`）。
+2. **状态栏常驻按钮**：只要有待审批，右下角（铃铛旁）固定显示 `$(check) 接受`（黄底）与 `$(close) 拒绝`（红底），与焦点无关；点击即执行，不再依赖会消失的气泡。
+3. **通知文案**：气泡提示改为"可点右上角 ✓/✗ 或右下角状态栏按钮"，仍保留按钮作为快捷入口。
+4. **重新打开待审批时重新弹出按钮**：从待审批队列（点击状态栏盾牌）重新打开 diff 时，会再次显示带按钮的提示。
+5. **本地化**：命令标题与设置说明改用 `package.nls.json` / `package.nls.zh-cn.json`，中文界面显示中文命令名与 tooltip。
+6. 新增上下文键 `dpr.hasPending` / `dpr.pendingCount` / `dpr.activeProposal`，供菜单 `when` 条件使用。
+
+**验证**：扩展 `0.1.1` 在 VS Code 1.145.0 中自检 **18/18** 通过（`docs/evidence/ext-selftest.json`）；`tsc`、59 个单测、边界检查全部通过。菜单能否渲染需人工目视（自动化无法断言 VS Code 标题栏 UI）；视觉验证在本轮人工演示中进行。

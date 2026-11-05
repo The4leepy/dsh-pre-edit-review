@@ -1,0 +1,11 @@
+{
+  "command.accept": "Pre-edit Review: Accept",
+  "command.reject": "Pre-edit Review: Reject",
+  "command.showPending": "Pre-edit Review: Show Pending Reviews",
+  "command.reconnect": "Pre-edit Review: Reconnect to Host",
+  "command.acceptAll": "Pre-edit Review: Arm Accept All (auto-accept window)",
+  "command.runSelfTest": "Pre-edit Review: Run Self-test",
+  "config.stateDir": "Directory that contains the Host plugin's Unix socket (ipc.sock) and authentication token (token). Must match the Host plugin's stateDir.",
+  "config.autoConnect": "Connect to the Host plugin automatically when VS Code starts.",
+  "config.autoAccept": "Allow the dpr.acceptAll command to arm a 5-minute auto-accept window. When enabled, changes arriving while armed are committed without asking."
+}

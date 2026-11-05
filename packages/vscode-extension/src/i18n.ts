@@ -23,6 +23,8 @@ export interface Messages {
   readonly accept: string
   readonly reject: string
   readonly reviewPrompt: (displayPath: string) => string
+  readonly statusAcceptTooltip: string
+  readonly statusRejectTooltip: string
   readonly diffTitle: (displayPath: string) => string
   readonly pendingPickPlaceholder: string
   pendingPickDescription(mode: string, toolName: string): string
@@ -78,7 +80,10 @@ const en: Messages = {
   autoAcceptTooltip: (until) => `Auto-accept armed until ${until.toLocaleTimeString()} — click to disarm.`,
   accept: 'Accept',
   reject: 'Reject',
-  reviewPrompt: (displayPath) => `Review ${displayPath} — Accept / Reject`,
+  reviewPrompt: (displayPath) =>
+    `Review ${displayPath} — use the ✓/✗ buttons in the editor title bar or the bottom-right status bar`,
+  statusAcceptTooltip: 'Accept the proposed change in this review and write it to disk.',
+  statusRejectTooltip: 'Reject the proposed change; the file is not modified.',
   diffTitle: (displayPath) => `Pre-edit Review: ${displayPath}`,
   pendingPickPlaceholder: 'Pending review requests (select one to open its diff)',
   pendingPickDescription: (mode, toolName) => `${mode} · ${toolName}`,
@@ -131,7 +136,10 @@ const zhCN: Messages = {
   autoAcceptTooltip: (until) => `自动接受已启用，截止 ${until.toLocaleTimeString()} — 点击关闭。`,
   accept: '接受',
   reject: '拒绝',
-  reviewPrompt: (displayPath) => `审阅 ${displayPath} — 接受 / 拒绝`,
+  reviewPrompt: (displayPath) =>
+    `审阅 ${displayPath} — 可点编辑器右上角的 ✓/✗ 按钮，或右下角状态栏的「接受 / 拒绝」`,
+  statusAcceptTooltip: '接受本次修改并写入磁盘。',
+  statusRejectTooltip: '拒绝本次修改，文件保持不变。',
   diffTitle: (displayPath) => `修改前审阅：${displayPath}`,
   pendingPickPlaceholder: '待审批请求（选择一项打开对应 diff）',
   pendingPickDescription: (mode, toolName) => `${mode} · ${toolName}`,

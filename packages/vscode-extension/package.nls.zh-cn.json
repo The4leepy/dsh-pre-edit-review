@@ -1,0 +1,11 @@
+{
+  "command.accept": "修改前审阅：接受",
+  "command.reject": "修改前审阅：拒绝",
+  "command.showPending": "修改前审阅：查看待审批队列",
+  "command.reconnect": "修改前审阅：重新连接 Host",
+  "command.acceptAll": "修改前审阅：开启全部接受（自动接受窗口）",
+  "command.runSelfTest": "修改前审阅：运行自检",
+  "config.stateDir": "Host 插件 Unix socket（ipc.sock）与鉴权 token 所在目录，必须与 Host 插件的 stateDir 一致。",
+  "config.autoConnect": "VS Code 启动时自动连接 Host 插件。",
+  "config.autoAccept": "允许 dpr.acceptAll 开启 5 分钟自动接受窗口；开启期间到达的修改会不经确认直接提交。"
+}

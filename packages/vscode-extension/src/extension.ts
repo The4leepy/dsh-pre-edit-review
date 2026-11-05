@@ -33,6 +33,8 @@ let mainSession: ReviewSession | undefined
 let selfTestSession: ReviewSession | undefined
 let statusBar: vscode.StatusBarItem | undefined
 let autoAcceptBar: vscode.StatusBarItem | undefined
+let acceptBar: vscode.StatusBarItem | undefined
+let rejectBar: vscode.StatusBarItem | undefined
 let output: vscode.OutputChannel | undefined
 let messages: Messages = pickMessages('en')
 let clientVersion = '0.0.0'
@@ -62,6 +64,27 @@ export function activate(context: vscode.ExtensionContext): void {
   autoAcceptBar.command = 'dpr.acceptAll'
   autoAcceptBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground')
   context.subscriptions.push(autoAcceptBar)
+
+  // Prominent, always-visible decisions: the transient notification toast
+  // disappears after a few seconds, but these stay until the review is decided.
+  acceptBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 101)
+  acceptBar.text = `$(check) ${messages.accept}`
+  acceptBar.tooltip = messages.statusAcceptTooltip
+  acceptBar.command = 'dpr.accept'
+  acceptBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground')
+  context.subscriptions.push(acceptBar)
+  rejectBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100)
+  rejectBar.text = `$(close) ${messages.reject}`
+  rejectBar.tooltip = messages.statusRejectTooltip
+  rejectBar.command = 'dpr.reject'
+  rejectBar.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground')
+  context.subscriptions.push(rejectBar)
+
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor(() => {
+      updateProposalContext()
+    }),
+  )
   updateStatusBar()
 
   context.subscriptions.push(
@@ -102,6 +125,10 @@ export function deactivate(): void {
   statusBar = undefined
   autoAcceptBar?.dispose()
   autoAcceptBar = undefined
+  acceptBar?.dispose()
+  acceptBar = undefined
+  rejectBar?.dispose()
+  rejectBar = undefined
   output?.dispose()
   output = undefined
 }
@@ -197,6 +224,21 @@ function updateStatusBar(): void {
   )
   statusBar.show()
 
+  // Editor-title buttons appear only while a dpr proposal is active and a
+  // review is pending; the status-bar decisions stay visible for any focus.
+  const hasPending = pending > 0
+  if (acceptBar !== undefined) {
+    if (hasPending) acceptBar.show()
+    else acceptBar.hide()
+  }
+  if (rejectBar !== undefined) {
+    if (hasPending) rejectBar.show()
+    else rejectBar.hide()
+  }
+  void vscode.commands.executeCommand('setContext', 'dpr.hasPending', hasPending)
+  void vscode.commands.executeCommand('setContext', 'dpr.pendingCount', pending)
+  updateProposalContext()
+
   if (autoAcceptBar === undefined) return
   if (mainSession?.autoAcceptArmed === true) {
     const deadline = mainSession.autoAcceptDeadline ?? Date.now()
@@ -207,6 +249,12 @@ function updateStatusBar(): void {
   } else {
     autoAcceptBar.hide()
   }
+}
+
+/** Keep the `dpr.activeProposal` context key in sync with the focused editor. */
+function updateProposalContext(): void {
+  const active = vscode.window.activeTextEditor?.document.uri.scheme === DPR_SCHEME
+  void vscode.commands.executeCommand('setContext', 'dpr.activeProposal', active)
 }
 
 // ---------------------------------------------------------------------------

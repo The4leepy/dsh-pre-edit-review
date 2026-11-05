@@ -3,7 +3,7 @@
   "displayName": "DeepSeek Pre-edit Review",
   "description": "Review and edit agent-proposed file changes in an editable VS Code diff before anything is written to disk.",
   "publisher": "The-4leepy",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "engines": {
     "vscode": "^1.145.0"
@@ -17,29 +17,57 @@
     "commands": [
       {
         "command": "dpr.accept",
-        "title": "Pre-edit Review: Accept"
+        "title": "%command.accept%",
+        "icon": "$(check)"
       },
       {
         "command": "dpr.reject",
-        "title": "Pre-edit Review: Reject"
+        "title": "%command.reject%",
+        "icon": "$(close)"
       },
       {
         "command": "dpr.showPending",
-        "title": "Pre-edit Review: Show Pending Reviews"
+        "title": "%command.showPending%"
       },
       {
         "command": "dpr.reconnect",
-        "title": "Pre-edit Review: Reconnect to Host"
+        "title": "%command.reconnect%"
       },
       {
         "command": "dpr.acceptAll",
-        "title": "Pre-edit Review: Arm Accept All (auto-accept window)"
+        "title": "%command.acceptAll%"
       },
       {
         "command": "dpr.runSelfTest",
-        "title": "Pre-edit Review: Run Self-test"
+        "title": "%command.runSelfTest%"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "dpr.reject",
+          "when": "dpr.activeProposal && dpr.hasPending",
+          "group": "navigation@1",
+          "icon": "$(close)"
+        },
+        {
+          "command": "dpr.accept",
+          "when": "dpr.activeProposal && dpr.hasPending",
+          "group": "navigation@2",
+          "icon": "$(check)"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "dpr.accept",
+          "when": "dpr.hasPending"
+        },
+        {
+          "command": "dpr.reject",
+          "when": "dpr.hasPending"
+        }
+      ]
+    },
     "keybindings": [
       {
         "command": "dpr.accept",
@@ -60,17 +88,17 @@
         "dpr.stateDir": {
           "type": "string",
           "default": "~/.dsh/pre-edit-review",
-          "description": "Directory that contains the Host plugin's Unix socket (ipc.sock) and authentication token (token). Must match the Host plugin's stateDir."
+          "description": "%config.stateDir%"
         },
         "dpr.autoConnect": {
           "type": "boolean",
           "default": true,
-          "description": "Connect to the Host plugin automatically when VS Code starts."
+          "description": "%config.autoConnect%"
         },
         "dpr.autoAccept": {
           "type": "boolean",
           "default": false,
-          "description": "Allow the dpr.acceptAll command to arm a 5-minute auto-accept window. When enabled, changes arriving while armed are committed without asking."
+          "description": "%config.autoAccept%"
         }
       }
     }

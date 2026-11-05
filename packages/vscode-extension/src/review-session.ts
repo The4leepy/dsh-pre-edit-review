@@ -669,6 +669,11 @@ export class ReviewSession {
         this.messages.diffTitle(review.params.displayPath),
         { preview: false },
       )
+      // Re-surface the decision buttons when the user explicitly re-opens a
+      // pending review from the queue (the arrival toast may be long gone).
+      if (!this.options.quiet && this.pending.get(review.params.requestId) === review) {
+        this.promptReview(review)
+      }
     } catch (error) {
       this.showWarning(this.messages.openDiffFailed(review.params.displayPath, describeError(error)))
     }
