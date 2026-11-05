@@ -2,24 +2,24 @@
   "format": 1,
   "title": {
     "en": "DeepSeek Pre-edit Review",
-    "zh-cn": "DeepSeek 修改前审阅"
+    "zh-cn": "DeepSeek \u4fee\u6539\u524d\u5ba1\u9605"
   },
   "description": {
     "en": "Unofficial plugin index: review agent file changes as an editable diff before they are written.",
-    "zh-cn": "非官方插件索引：Agent 改文件前先进入可编辑 diff 审批。"
+    "zh-cn": "\u975e\u5b98\u65b9\u63d2\u4ef6\u7d22\u5f15\uff1aAgent \u6539\u6587\u4ef6\u524d\u5148\u8fdb\u5165\u53ef\u7f16\u8f91 diff \u5ba1\u6279\u3002"
   },
   "metadata": {
     "categories": {
       "safety": {
         "title": {
           "en": "Safety",
-          "zh-cn": "安全"
+          "zh-cn": "\u5b89\u5168"
         }
       },
       "review": {
         "title": {
           "en": "Code review",
-          "zh-cn": "代码审阅"
+          "zh-cn": "\u4ee3\u7801\u5ba1\u9605"
         }
       }
     },
@@ -27,7 +27,7 @@
       "pre-edit": {
         "title": {
           "en": "Pre-edit approval",
-          "zh-cn": "修改前审批"
+          "zh-cn": "\u4fee\u6539\u524d\u5ba1\u6279"
         }
       }
     }
@@ -37,11 +37,11 @@
       "name": "dsh-pre-edit-review",
       "title": {
         "en": "Pre-edit Review for DeepSeek Harness",
-        "zh-cn": "DeepSeek 修改前审阅"
+        "zh-cn": "DeepSeek \u4fee\u6539\u524d\u5ba1\u9605"
       },
       "description": {
         "en": "Intercept agent file writes, stage them, and only commit after the user accepts an editable diff in VS Code. Ships the DSH Host plugin; pair it with the The4leepy.deepseek-pre-edit-review VS Code extension.",
-        "zh-cn": "拦截 Agent 的文件写入，暂存后交由用户在 VS Code 的可编辑 diff 中审批；接受后才写入。需配合 The4leepy.deepseek-pre-edit-review 扩展使用。"
+        "zh-cn": "\u62e6\u622a Agent \u7684\u6587\u4ef6\u5199\u5165\uff0c\u6682\u5b58\u540e\u4ea4\u7531\u7528\u6237\u5728 VS Code \u7684\u53ef\u7f16\u8f91 diff \u4e2d\u5ba1\u6279\uff1b\u63a5\u53d7\u540e\u624d\u5199\u5165\u3002\u9700\u914d\u5408 The4leepy.deepseek-pre-edit-review \u6269\u5c55\u4f7f\u7528\u3002"
       },
       "author": "The4leepy",
       "homepage": "https://github.com/The4leepy/dsh-pre-edit-review#readme",
@@ -71,7 +71,10 @@
           "version": "0.2.1",
           "publishTimestamp": 1793885278,
           "source": {
-            "type": "npm"
+            "type": "git",
+            "url": "https://github.com/The4leepy/dsh-pre-edit-review",
+            "commit": "7cafbaa77529013a4f8dbe0dbb4bfb9f6eeb4582",
+            "path": "packages/dsh-plugin"
           },
           "engines": {
             "dsh": ">=0.2.1-rc.5 <0.3.0"

@@ -133,3 +133,15 @@ plugin_manager install_bundle target=<本地 packages/dsh-plugin 绝对路径>
 - 不要把 npm token / Azure PAT / SSH 私钥写进仓库或日志；
 - 发布前跑 `git grep -n "token\|PAT\|password"` 自查；
 - 安全边界与漏洞报告见 [security.md](security.md) 与 [SECURITY.md](../SECURITY.md)。
+
+
+## 7. 首次发布进度（2026-11-05）
+
+| 渠道 | 状态 | 说明 |
+|---|---|---|
+| GitHub | ✅ 已发布 | <https://github.com/The4leepy/dsh-pre-edit-review>，`main` 分支、tag `v0.2.5`；Contributors 只有 The4leepy |
+| DSH 索引（git 源） | ✅ 可用 | `market/index.json` 以 commit + `packages/dsh-plugin` 固定，用户添加 raw URL 即可安装 |
+| npm | ⏳ 待登录 | 需要仓库所有者执行一次 `npm login`，然后 `cd packages/dsh-plugin && npm publish --access public`；发布后把 `market/index.json` 的 source 换回 npm（`node scripts/build-market-index.mjs`） |
+| VS Code Marketplace | ⏳ 待 PAT | 需要 publisher `The4leepy` 的 Azure DevOps PAT：`npx @vscode/vsce login The4leepy` 后 `vsce publish`；或只把 VSIX 上传到 GitHub Release |
+
+> 以上两条需要账号凭据，Agent 不会代为登录或保存 token。
