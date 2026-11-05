@@ -1,9 +1,9 @@
 {
   "name": "dsh-pre-edit-review",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "DeepSeek Pre-edit Review — intercept agent file writes, review them as an editable diff in VS Code, and only commit after the user accepts.",
+  "description": "DeepSeek Pre-edit Review \u2014 intercept agent file writes, review them as an editable diff in VS Code, and only commit after the user accepts.",
   "main": "./dist/index.mjs",
   "exports": {
     ".": "./dist/index.mjs",
@@ -22,6 +22,8 @@
     "dist",
     "cordis.patch.yml",
     "locale",
-    "package.json"
-  ]
+    "package.json",
+    "README.md"
+  ],
+  "license": "Apache-2.0"
 }

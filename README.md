@@ -4,6 +4,17 @@ Agent 提出的每一次文件修改，都先变成一份 **可编辑的左右�
 
 > 安全前提：Agent 在审批前不能修改原始文件；严格模式下（会话 `read-only` 沙箱）它连 bash 都写不了。
 
+## 快速开始
+
+```bash
+scripts/install-extension.sh --build     # 装 VS Code 扩展（先）
+scripts/install-plugin.sh                # 装 DSH 插件（先 arm kill switch）
+scripts/doctor.sh                        # 体检
+# 确认无误后解除急停：rm ~/.dsh/pre-edit-review/DISABLED
+```
+
+详细步骤：[docs/install.md](docs/install.md)｜日常使用：[docs/usage.md](docs/usage.md)｜出问题：[docs/troubleshooting.md](docs/troubleshooting.md)
+
 ## 状态
 
 | 阶段 | 内容 | 状态 |
@@ -14,7 +25,7 @@ Agent 提出的每一次文件修改，都先变成一份 **可编辑的左右�
 | M2.2 UX | 去除重复入口；状态栏单一高亮指示；通知改为每会话首次一次性引导（无按钮） | ✅ 完成，见 [docs/m2-status.md](docs/m2-status.md#10-m22-ux-再调整用户反馈2026-11-05) |
 | Phase 3 / M3 | 多文件队列视图、历史面板、批量拒绝、`str_replace_editor` 提案、`/review history` | ✅ 完成，见 [docs/m3-status.md](docs/m3-status.md) |
 | Phase 4 / M4 | 严格模式整会话 E2E、IPC nonce/帧上限、崩溃对账与演练、`docs/security.md` 定稿 | ✅ 完成，见 [docs/m4-status.md](docs/m4-status.md) |
-| Phase 5 | 安装脚本、打包整理、安装/使用/排障文档 | 待开始 |
+| Phase 5 / M5 | 安装/卸载/体检脚本、打包整理（LICENSE/CHANGELOG）、安装/使用/排障文档 + 干净机器清单 | ✅ 完成，见 [docs/m5-status.md](docs/m5-status.md) |
 
 ## 架构
 
@@ -45,6 +56,17 @@ VS Code 扩展（`The-4leepy.deepseek-pre-edit-review`）
 |---|---|---|
 | 工具级（默认） | `workspace-write` | 拦截 `write`/`edit` 等工具；**bash/脚本可绕过**，文档与 `/review status` 明确标注 |
 | 严格 | `read-only`（`/review strict`） | OS 沙箱拒绝一切写入；审批提交是唯一写路径 ⇒ 不可绕过 |
+
+## 文档索引
+
+| 文档 | 内容 |
+|---|---|
+| [docs/install.md](docs/install.md) | 安装/升级/卸载、干净机器验收清单 |
+| [docs/usage.md](docs/usage.md) | 审批流程、决策入口、四种运行状态、命令 |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | 十类常见故障与恢复步骤 |
+| [docs/security.md](docs/security.md) | 威胁模型、保证矩阵、已知限制 |
+| [docs/m1-status.md](docs/m1-status.md) … [m5-status.md](docs/m5-status.md) | 各阶段验收 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本变更 |
 
 ## 仓库结构
 

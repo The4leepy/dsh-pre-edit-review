@@ -1,0 +1,55 @@
+{
+  "capturedAt": "2026-11-05",
+  "cycle": "phase5 install -> verify -> uninstall on macOS",
+  "steps": [
+    {
+      "step": "scripts/install-extension.sh",
+      "result": "PASS",
+      "detail": "installed 0.2.1 from newest vsix"
+    },
+    {
+      "step": "scripts/install-plugin.sh (no dsh CLI)",
+      "result": "PASS (safety order)",
+      "detail": "armed kill switch, printed manual install path, exit 2 by design"
+    },
+    {
+      "step": "plugin_manager install_bundle",
+      "result": "PASS",
+      "detail": "plugin 0.2.0 registered and applied"
+    },
+    {
+      "step": "scripts/doctor.sh (installed)",
+      "result": "PASS",
+      "detail": "no failures; kill switch WARN as expected"
+    },
+    {
+      "step": "extension self-test in VS Code",
+      "result": "PASS",
+      "detail": "27/27 steps"
+    },
+    {
+      "step": "review cycle with kill switch off (fake client)",
+      "result": "PASS",
+      "detail": "write reviewed -> accepted -> committed; audit review/committed"
+    },
+    {
+      "step": "scripts/uninstall.sh --purge --yes",
+      "result": "PASS",
+      "detail": "extension removed, state dir purged, manual plugin-removal path printed"
+    },
+    {
+      "step": "plugin_manager remove_bundle",
+      "result": "PASS",
+      "detail": "plugin unregistered"
+    },
+    {
+      "step": "scripts/doctor.sh (clean)",
+      "result": "PASS",
+      "detail": "no failures; extension restored afterwards for the user"
+    }
+  ],
+  "notes": [
+    "clean-machine checklist in docs/install.md was executed as far as this machine allows (no second machine available)",
+    "install-plugin.sh cannot install automatically on packaged Desktop because the dsh CLI is not on PATH; it arms the kill switch and prints exact GUI/agent steps"
+  ]
+}
