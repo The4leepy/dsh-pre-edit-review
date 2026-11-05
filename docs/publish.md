@@ -146,3 +146,36 @@ plugin_manager install_bundle target=<本地 packages/dsh-plugin 绝对路径>
 | GitHub Release（自动） | ✅ 已配置 | 推送 `v*` tag 时 `.github/workflows/release.yml` 自动构建并附加 VSIX + npm tarball |
 
 > 以上两条需要账号凭据，Agent 不会代为登录或保存 token。
+
+
+## 8. 首次发布结果（2026-11-05，最终）
+
+| 渠道 | 状态 | 细节 |
+|---|---|---|
+| GitHub 仓库 | ✅ 已发布 | <https://github.com/The4leepy/dsh-pre-edit-review>；`main`；Contributors 仅 `The4leepy` |
+| GitHub CI | ✅ 通过 | `CI` 工作流：install → typecheck/boundaries/tests → build |
+| GitHub Release | ✅ 自动生成 | tag `v0.2.5` → Release 附带 `deepseek-pre-edit-review-0.2.5.vsix` 与 `dsh-pre-edit-review-0.2.1.tgz` |
+| DSH 插件索引（git 源） | ✅ 已实测可装 | `market/index.json` 固定 commit + `path:/packages/dsh-plugin`；用 `plugin_manager install_bundle` 从该 git spec 安装并成功挂载 |
+| npm | ⏳ 待账号登录 | 见下方命令；发布后把索引切回 npm 源 |
+| VS Code Marketplace | ⏳ 待 PAT | 见下方命令 |
+
+### 需要仓库所有者执行的两条命令
+
+```bash
+# 1) npm（包名已确认可用：dsh-pre-edit-review）
+npm login                       # 账号 The4leepy
+cd packages/dsh-plugin
+npm publish --access public
+# 发布成功后，回到仓库根目录把索引切到 npm 源并推送：
+cd ../.. && node scripts/build-market-index.mjs && git add market/index.json && git commit -m "market: publish 0.2.1 to npm" && git push
+
+# 2) VS Code Marketplace（先在 marketplace.visualstudio.com/manage 创建 publisher "The4leepy"）
+npx @vscode/vsce login The4leepy   # 使用 Azure DevOps PAT（Marketplace: Manage 权限）
+cd packages/vscode-extension && npx @vscode/vsce publish
+```
+
+### 用户的其他安装方式（不依赖 npm）
+
+- GitHub Release 里的 `dsh-pre-edit-review-0.2.1.tgz`：`plugin_manager install_bundle target=<绝对路径>/dsh-pre-edit-review-0.2.1.tgz`
+- DSH 索引 raw URL：`https://raw.githubusercontent.com/The4leepy/dsh-pre-edit-review/main/market/index.json`（git 源，当前可用）
+- 本地克隆：`plugin_manager install_bundle target=<repo>/packages/dsh-plugin`
