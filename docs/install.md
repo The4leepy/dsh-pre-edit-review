@@ -34,7 +34,7 @@ scripts/install-plugin.sh                # 会先 arm kill switch，再安装
 ```
 
 - 有 `dsh` CLI：脚本直接执行 `dsh plugin --profile <profile> add <repo>/packages/dsh-plugin`。
-- 也可以直接从发布包安装（**0.3.0 未发布时请用列表里的"本地克隆"方式**，发布后再用注册表版本号）：
+- 也可以直接从发布包安装：
   - `plugin_manager install_bundle target=dsh-pre-edit-review@0.3.0`
   - DSH 索引：`https://raw.githubusercontent.com/The4leepy/dsh-pre-edit-review/main/market/index.json`
   - GitHub Release 的 `dsh-pre-edit-review-*.tgz`

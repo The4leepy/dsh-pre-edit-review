@@ -44,7 +44,7 @@ scripts/doctor.sh                        # 体检
 | Phase 4 / M4 | 严格模式整会话 E2E、IPC nonce/帧上限、崩溃对账与演练、`docs/security.md` 定稿 | ✅ 完成，见 [docs/m4-status.md](docs/m4-status.md) |
 | Phase 5 / M5 | 安装/卸载/体检脚本、打包整理（LICENSE/CHANGELOG）、安装/使用/排障文档 + 干净机器清单 | ✅ 完成，见 [docs/m5-status.md](docs/m5-status.md) |
 | 发布 | GitHub 公开仓库 + CI + Release（VSIX/tgz）、npm `dsh-pre-edit-review@0.2.1`、DSH format-1 索引、VS Code Marketplace `The4leepy.deepseek-pre-edit-review@0.2.5` | ✅ 全部完成，见 [docs/publish.md](docs/publish.md) |
-| 0.3.0（ADR 0002） | 默认未启用 + 会话级 `/review on`；按 Host 隔离 socket/token/staging；扩展多 Host 连接与路由；IPC 绑定/令牌发布加固 | 🚧 代码与单测完成，待发布（见 [ADR 0002](docs/adr/0002-opt-in-activation-and-multi-host.md)） |
+| 0.3.0（ADR 0002） | 默认未启用 + 会话级 `/review on`；按 Host 隔离 socket/token/staging；扩展多 Host 连接与路由；IPC 绑定/令牌发布加固 | ✅ 已发布：npm `0.3.0` + Marketplace `0.3.0`（见 [ADR 0002](docs/adr/0002-opt-in-activation-and-multi-host.md)） |
 
 ## 验证记录
 

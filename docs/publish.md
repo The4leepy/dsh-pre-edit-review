@@ -7,10 +7,10 @@
 
 | 项 | 值 |
 |---|---|
-| 仓库代码版本 | **0.3.0**（ADR 0002：默认未启用 + 多 Host）—— 代码与单测完成，**尚未发布** |
-| 已发布的最新版本 | npm 插件 `0.2.1`、Marketplace 扩展 `0.2.5`、Release tag `v0.2.5` |
-| 0.3.0 发布顺序 | **先发扩展（Marketplace），再发插件（npm）**；0.2.x 扩展连不上 0.3.0 Host |
-| 0.3.0 额外核对 | `market/index.json` 保持已发布的 0.2.1，**npm publish 成功之后**再 `node scripts/build-market-index.mjs` 更新并提交；`engines.dsh` 仍需 `>=0.2.1-rc.5 <0.3.0`（0.3.0 只在 DSH 0.2.2-rc.1 实测） |
+| 仓库代码版本 | **0.3.0**（ADR 0002：默认未启用 + 多 Host）—— 已发布 |
+| 已发布的最新版本 | npm 插件 `0.3.0`、Marketplace 扩展 `0.3.0`、tag `v0.3.0`、DSH 索引 `0.3.0` |
+| 0.3.0 发布顺序 | ✅ 已按"先扩展、后插件"完成；0.2.x 扩展连不上 0.3.0 Host |
+| 0.3.0 额外核对 | ✅ `market/index.json` 已更新到 npm `0.3.0`；`engines.dsh` 仍为 `>=0.2.1-rc.5 <0.3.0`（0.3.0 在 DSH 0.2.2-rc.1 实测） |
 
 ## 1. GitHub
 
@@ -170,7 +170,7 @@ plugin_manager install_bundle target=<本地 packages/dsh-plugin 绝对路径>
 | npm | ✅ 已发布 | `dsh-pre-edit-review@0.2.1`（`latest`） |
 | VS Code Marketplace | ✅ 已发布 | `The4leepy.deepseek-pre-edit-review@0.2.5` |
 
-### 8.1 0.3.0 发布清单（待执行）
+### 8.1 0.3.0 发布清单（已执行）
 
 1. 两处版本对齐到 `0.3.0`：`packages/dsh-plugin/package.json`、`packages/vscode-extension/package.json`（根 `package.json` 同步）；`src/runtime.ts` 的 `PLUGIN_VERSION` 已同步。
 2. `pnpm run check && pnpm run build`；确认 `packages/dsh-plugin/dist/index.mjs` 重建并提交。
@@ -179,6 +179,8 @@ plugin_manager install_bundle target=<本地 packages/dsh-plugin 绝对路径>
 5. npm 发布成功后再 `node scripts/build-market-index.mjs` → 提交 `market/index.json` → `node scripts/check-market-index.mjs`（索引指向未发布的版本会让 raw 安装失败）。
 6. tag `v0.3.0` → push 触发 Release（附 VSIX + npm tgz）。
 7. 发布后核对：`npm view dsh-pre-edit-review version`、Marketplace 页面、raw index URL；两个 profile 各升级一次并跑 `scripts/doctor.sh`。
+
+**0.3.0 执行结果（2026-11-06）**：npm `dsh-pre-edit-review@0.3.0`、Marketplace `The4leepy.deepseek-pre-edit-review@0.3.0`、tag `v0.3.0`、索引已切 npm `0.3.0`；本机两个 profile 已从本地 link 切回 npm 0.3.0，扩展从 Marketplace 安装 0.3.0。
 
 
 ### 需要仓库所有者执行的两条命令

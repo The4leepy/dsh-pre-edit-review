@@ -25,13 +25,13 @@
 | VS Code 扩展 | `packages/vscode-extension` | VS Marketplace `The4leepy.deepseek-pre-edit-review` + Release VSIX | **0.3.0**（未发布；Marketplace 上是 0.2.5） |
 | 共享协议/契约 | `packages/shared` | 不独立发布（构建内联） | — |
 
-**已发布渠道**（截至 0.2.x）：
+**已发布渠道**（2026-11-06 起为 0.3.0）：
 
-- GitHub：<https://github.com/The4leepy/dsh-pre-edit-review>（tag `v0.2.5`）
-- VS Code Marketplace：`The4leepy.deepseek-pre-edit-review@0.2.5`
-- npm：`dsh-pre-edit-review@0.2.1`（`latest`）
-- DSH 插件索引（format 1，npm 源）：`https://raw.githubusercontent.com/The4leepy/dsh-pre-edit-review/main/market/index.json`
-- 0.3.0 发布清单见 [docs/publish.md](docs/publish.md) §8.1；**发布顺序：先扩展、后插件**（0.2.x 扩展连不上 0.3.0 Host）。
+- GitHub：<https://github.com/The4leepy/dsh-pre-edit-review>（tag `v0.3.0`）
+- VS Code Marketplace：`The4leepy.deepseek-pre-edit-review@0.3.0`
+- npm：`dsh-pre-edit-review@0.3.0`（`latest`）
+- DSH 插件索引（format 1，npm 源）：`https://raw.githubusercontent.com/The4leepy/dsh-pre-edit-review/main/market/index.json`（当前版本 0.3.0）
+- 升级顺序：**先扩展、后插件**（0.2.x 扩展连不上 0.3.0 Host）。
 
 **最重要的规则（违反会破坏安全模型或发布流程）**
 
@@ -78,10 +78,10 @@ git log --oneline -5 && git status --short
 |---|---|
 | DSH | **0.2.2-rc.1**（Desktop app + `dsh` CLI 都在；CLI 位于 `/opt/homebrew/bin/dsh`） |
 | DSH profile | `desktop` → `~/.dsh/profiles/desktop`；另有 `dsh-tui` → `~/.dsh/profiles/dsh-tui` |
-| 插件安装形态 | 发布前联调用 **本地 `link:` 0.3.0** 装入两个 profile；发布后应改回 npm `0.3.0` |
+| 插件安装形态 | 两个 profile 均为 **npm `0.3.0`**（联调时用本地 link，发布后已切回 npm） |
 | 当前挂载状态 | 两个 profile 的 bundles 都包含 `dsh-pre-edit-review`；Desktop 与 TUI 两个 Host 可同时运行（0.3.0 起） |
 | 运行时状态目录 | `~/.dsh/pre-edit-review`：0.3.0 起为 `hosts/<hostKey>/{ipc.sock,token,meta.json,staging,audit}`（根目录旧的 socket 会被自动清理） |
-| VS Code | **1.145.0** 正在运行；扩展 `the4leepy.deepseek-pre-edit-review@0.2.5` 已安装 |
+| VS Code | **1.145.0**；扩展 `the4leepy.deepseek-pre-edit-review@0.3.0`（Marketplace 安装） |
 | 平台 | macOS arm64；Windows/Linux 未验证 |
 | 工程环境 | Node v26（要求 ≥22.19）、pnpm 12.5.1、TypeScript 5.9、esbuild、vsce 4 |
 
@@ -108,9 +108,9 @@ git log --oneline -5 && git status --short
 | 项 | 值 |
 |---|---|
 | 根 `package.json` version | `0.3.0`（private，仅用于工作区脚本） |
-| 插件 `packages/dsh-plugin/package.json` | `0.3.0`（npm 上最新仍是 0.2.1） |
-| 扩展 `packages/vscode-extension/package.json` | `0.3.0`（Marketplace 上最新仍是 0.2.5） |
-| git tag | 最新 `v0.2.5`；`v0.3.0` 待发布时打 |
+| 插件 `packages/dsh-plugin/package.json` | `0.3.0`（npm `latest`） |
+| 扩展 `packages/vscode-extension/package.json` | `0.3.0`（Marketplace 最新） |
+| git tag | 最新 `v0.3.0` |
 | 远程 | `origin = git@github.com:The4leepy/dsh-pre-edit-review.git`（main） |
 
 > 0.3.0 把插件与扩展版本统一，解决了 0.2.x 的版本号不一致。
@@ -131,7 +131,7 @@ git log --oneline -5 && git status --short
 
 ### 2.3 当前本机环境快照（开发 0.3.0 时）
 
-- 两个 profile 都安装本地 `link:` 0.3.0；Desktop 与 TUI 两个 Host 同时运行的联测已通过；
+- 两个 profile 都安装 npm `0.3.0`；人工联测已验证 Desktop 与 TUI 两个 Host 同时运行、各自审批；
 - `~/.dsh/pre-edit-review/hosts/{desktop,dsh-tui}/` 各有一套 socket/token/staging/audit；旧根目录 socket 已被自动清理；
 - VS Code 运行中，扩展 0.3.0（含 `⌘+Shift+A` / `⌘+Shift+Backspace` 与双 Host 连接）；仓库工作树含 0.3.0 改动。
 
