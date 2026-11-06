@@ -11,7 +11,7 @@ file-mutating tool call, stages the proposal, and asks the VS Code extension to 
 **editable side-by-side diff**. The original file is only touched after the user clicks **Accept**;
 the content that lands is whatever the user finally approved (including their own edits).
 
-[中文说明](README.md) · [Install](docs/install.md) · [Usage](docs/usage.md) · [Security model](docs/security.md) · [Troubleshooting](docs/troubleshooting.md)
+[中文说明](README.md) · [**Handover (start here if you maintain this)**](HANDOVER.md) · [Install](docs/install.md) · [Usage](docs/usage.md) · [Security model](docs/security.md) · [Troubleshooting](docs/troubleshooting.md)
 
 ## Why
 

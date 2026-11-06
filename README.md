@@ -4,7 +4,7 @@
 [![Marketplace](https://img.shields.io/visual-studio-marketplace/v/The4leepy.deepseek-pre-edit-review?label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=The4leepy.deepseek-pre-edit-review) [![CI](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml/badge.svg)](https://github.com/The4leepy/dsh-pre-edit-review/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/The4leepy/dsh-pre-edit-review?display_name=tag)](https://github.com/The4leepy/dsh-pre-edit-review/releases/latest)
 
 
-**非官方社区项目（Unofficial）**：与 DeepSeek 官方无隶属关系。仓库：<https://github.com/The4leepy/dsh-pre-edit-review> ｜ [English README](README.en.md) ｜ [安全边界](docs/security.md) ｜ [发布指南](docs/publish.md)
+**非官方社区项目（Unofficial）**：与 DeepSeek 官方无隶属关系。仓库：<https://github.com/The4leepy/dsh-pre-edit-review> ｜ [English README](README.en.md) ｜ [**交接文档（新接手先读）**](HANDOVER.md) ｜ [安全边界](docs/security.md) ｜ [发布指南](docs/publish.md)
 
 Agent 提出的每一次文件修改，都先变成一份 **可编辑的左右分栏 diff**，用户在 VS Code 里改完并点击 **Accept** 之后，文件才真正写入。
 
@@ -75,6 +75,7 @@ VS Code 扩展（`The4leepy.deepseek-pre-edit-review`）
 
 | 文档 | 内容 |
 |---|---|
+| [**HANDOVER.md**](HANDOVER.md) | **项目交接文档：架构/代码地图/契约/工作流/踩坑/交接清单（新 Agent 先读）** |
 | [docs/install.md](docs/install.md) | 安装/升级/卸载、干净机器验收清单 |
 | [docs/usage.md](docs/usage.md) | 审批流程、决策入口、四种运行状态、命令 |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | 十类常见故障与恢复步骤 |
