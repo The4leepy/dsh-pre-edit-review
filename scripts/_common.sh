@@ -59,3 +59,15 @@ extension_installed() {
   code="$(find_code_cli)" || return 1
   "$code" --list-extensions 2>/dev/null | grep -qi "^$EXTENSION_ID\$"
 }
+
+# True when the plugin is actually enabled in `dsh.profile.bundles` (a stale
+# dependency entry alone means the user disabled the bundle).
+plugin_bundled() {
+  [ -f "$PROFILE_DIR/package.json" ] || return 1
+  node -e '
+    const { readFileSync } = require("node:fs")
+    const manifest = JSON.parse(readFileSync(process.argv[1], "utf8"))
+    const bundles = manifest?.dsh?.profile?.bundles
+    process.exit(Array.isArray(bundles) && bundles.includes("dsh-pre-edit-review") ? 0 : 1)
+  ' "$PROFILE_DIR/package.json" >/dev/null 2>&1
+}

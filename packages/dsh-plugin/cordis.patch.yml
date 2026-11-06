@@ -2,9 +2,15 @@
 #
 # Every field is optional and has a safe default (fail-closed: a review that
 # cannot reach VS Code is denied rather than silently written).
+#
+# `defaultActive: false` is the product default (ADR 0002): after a fresh
+# install or upgrade review is INACTIVE until the user runs `/review on` for a
+# session. src/config.ts falls back to the same value, so a profile-level config
+# row that replaces `config` wholesale cannot silently turn review back on.
 - insert:
     - id: pre-edit-review
       name: dsh-pre-edit-review
       config:
         enabled: true
         mode: review
+        defaultActive: false

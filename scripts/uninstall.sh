@@ -83,7 +83,7 @@ if [ "$PURGE" = "1" ]; then
   rm -rf "$STATE_DIR"
   ok "state directory removed: $STATE_DIR"
 else
-  warn "state directory kept: $STATE_DIR (use --purge to delete staging/audit/token)"
+  warn "state directory kept: $STATE_DIR (use --purge to delete hosts/, staging/, audit/, tokens and sockets)"
 fi
 
 say ""

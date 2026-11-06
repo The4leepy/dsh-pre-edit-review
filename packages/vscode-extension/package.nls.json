@@ -13,7 +13,7 @@
   "command.rejectAll": "Pre-edit Review: Reject All Pending Reviews",
   "command.clearHistory": "Pre-edit Review: Clear Review History",
   "command.runSelfTest": "Pre-edit Review: Run Self-test",
-  "config.stateDir": "Directory that contains the Host plugin's Unix socket (ipc.sock) and authentication token (token). Must match the Host plugin's stateDir.",
+  "config.stateDir": "Root directory for the Host plugin's state. 0.3.0 Hosts keep their Unix socket (ipc.sock), authentication token (token) and a meta.json descriptor under hosts/<hostKey>/; older Hosts use ipc.sock + token directly at the root. Must match the Host plugin's stateDir.",
   "config.autoConnect": "Connect to the Host plugin automatically when VS Code starts.",
   "config.autoAccept": "Allow the dpr.acceptAll command to arm a 5-minute auto-accept window. When enabled, changes arriving while armed are committed without asking.",
   "config.messageDurationMs": "How long transient DeepSeek Pre-edit Review messages stay in the status bar (1000-30000 ms). The default is 5000 ms. VS Code native notifications have a fixed lifetime that extensions cannot change; set dpr.useNativeNotifications to use them instead.",

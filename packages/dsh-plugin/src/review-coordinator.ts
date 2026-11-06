@@ -131,12 +131,10 @@ export class ReviewCoordinator {
   }
 
   /** Status snapshot for the `/review` command. */
-  status(): { connected: boolean; pending: number; stateDir: string; socketPath: string; mode: string } {
+  status(): { connected: boolean; pending: number; mode: string } {
     return {
       connected: this.deps.ipc.connected,
       pending: this.contexts.size,
-      stateDir: this.deps.config.stateDir,
-      socketPath: this.deps.config.socketPath,
       mode: this.deps.config.mode,
     }
   }

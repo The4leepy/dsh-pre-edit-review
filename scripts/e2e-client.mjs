@@ -4,7 +4,11 @@
  * tests, speaking the same protocol (hello → review/request → decision).
  *
  * Usage:
- *   node scripts/e2e-client.mjs --state-dir <dir> --mode <mode> --out <file> [--count N]
+ *   node scripts/e2e-client.mjs --state-dir <dir> --mode <mode> --out <file> [--count N] [--host-key <key>]
+ *
+ * `--host-key` selects the per-Host namespace of a 0.3.0 install
+ * (`<state-dir>/hosts/<key>/ipc.sock` + `token`); omit it for the legacy
+ * single-Host layout (`<state-dir>/ipc.sock` + `token`).
  *
  * Modes:
  *   accept         accept the proposed content as-is
@@ -25,13 +29,25 @@ function option(name, fallback) {
 }
 
 const stateDir = option('state-dir', join(process.env.HOME ?? '', '.dsh/pre-edit-review'))
+const hostKey = option('host-key', null)
 const mode = option('mode', 'accept')
 const outFile = option('out', null)
 const expectedCount = Number(option('count', '1'))
-const socketPath = join(stateDir, 'ipc.sock')
-const tokenPath = join(stateDir, 'token')
+const hostDir = hostKey === null ? stateDir : join(stateDir, 'hosts', hostKey)
+const socketPath = join(hostDir, 'ipc.sock')
+const tokenPath = join(hostDir, 'token')
 
-const report = { mode, connected: false, hello: null, requests: [], error: null, startedAt: new Date().toISOString() }
+const report = {
+  mode,
+  stateDir,
+  hostKey,
+  hostDir,
+  connected: false,
+  hello: null,
+  requests: [],
+  error: null,
+  startedAt: new Date().toISOString(),
+}
 let nextId = 10
 const pendingReplies = new Map()
 
@@ -125,6 +141,7 @@ async function main() {
   async function onReviewRequest(params) {
     const entry = {
       requestId: params.requestId,
+      hostKey: params.hostKey ?? null,
       toolName: params.toolName,
       displayPath: params.displayPath,
       operation: params.operation,

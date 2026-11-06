@@ -8,15 +8,17 @@
  *
  * Defence in depth against a self-locking plugin (prod incident 2026-11-05):
  * - the kill switch file bypasses the gate entirely;
+ * - a session without active review (the install default, ADR 0002) takes
+ *   `next()` before any tool/registry/coordinator lookup;
  * - tool-definition lookup can never throw out of the gate before a decision,
  *   so an unusable service degrades to the name/file policy instead of failing
  *   every tool call;
  * - coordinator errors fail closed but only for the reviewed call.
  */
+import type { ActivationRegistry } from './activation.ts'
 import { classify } from './classifier.ts'
 import type { PluginConfig } from './config.ts'
 import type { HostContext, ToolDefinitionView, ToolExecutionResultView, ToolExecutionView } from './host.ts'
-import type { PauseRegistry } from './pause.ts'
 import type { KillSwitch } from './kill-switch.ts'
 import { failureResult, type ReviewCoordinator, type ReviewResult } from './review-coordinator.ts'
 import { hasProposalBuilder } from './proposal.ts'
@@ -26,7 +28,7 @@ export interface GateDeps {
   config: PluginConfig
   coordinator: ReviewCoordinator
   killSwitch: KillSwitch
-  pause: PauseRegistry
+  activation: ActivationRegistry
 }
 
 function isPassthrough(result: ReviewResult): result is { passthrough: true } {
@@ -44,13 +46,14 @@ function lookupDefinition(ctx: HostContext, name: string): ToolDefinitionView | 
 
 /** Install the gate; returns a disposer. */
 export function installGate(deps: GateDeps): () => void {
-  const { ctx, config, coordinator, killSwitch, pause } = deps
+  const { ctx, config, coordinator, killSwitch, activation } = deps
   return ctx.on(
     'tools/execute',
     async (exec: ToolExecutionView, next: () => Promise<ToolExecutionResultView>) => {
       if (killSwitch.active()) return next()
-      // User-selected release mode for this session: let the tool write directly.
-      if (pause.isPaused(exec.agent?.session)) return next()
+      // Review is opt-in (ADR 0002): an inactive session is untouched — no tool
+      // definition lookup, no coordinator, no IPC, no staging write.
+      if (!activation.isActive(exec.agent)) return next()
 
       let classification
       try {

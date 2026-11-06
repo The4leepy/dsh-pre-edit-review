@@ -1,16 +1,23 @@
 /**
  * In-process extension self-test.
  *
- * It starts a **mock Host** on a temporary Unix domain socket (real NDJSON
- * JSON-RPC, real token file), points a real `IpcClient`/`ReviewSession` at it,
- * and then drives the real `dpr.accept` / `dpr.reject` commands:
+ * It starts **mock Hosts** on temporary Unix domain sockets (real NDJSON
+ * JSON-RPC, real token files) and drives the real `dpr.*` commands through the
+ * extension's routing:
  *
+ *   - legacy phase (0.2.x layout): one Host at the root of the state dir;
+ *   - multi-Host phase (ADR 0002): two Hosts under `<root>/hosts/<key>` with
+ *     `meta.json` descriptors, so discovery, aggregated pending rows, routing
+ *     and the per-Host diff title are exercised end to end.
+ *
+ * Scenarios in the legacy phase:
  *   1. accept-with-edit: a `review/request` is sent, the self-test applies a
  *      `WorkspaceEdit` to the proposed document (as if the user typed), calls
  *      the accept command, and asserts the mock received a `decision` whose
  *      `finalContent` contains the edit marker.
  *   2. reject: a second request is sent, the reject command is called and the
  *      mock asserts `status === 'reject'`.
+ *   3. reject-all drains a fresh pending review.
  *
  * The JSON report is always written to `<workspace>/.spike/ext-selftest.json`
  * (when a workspace folder is open), even when a step fails.
@@ -24,6 +31,7 @@ import { dirname, join } from 'node:path'
 
 import * as vscode from 'vscode'
 
+import type { HostDescriptor } from '../../shared/src/host.ts'
 import {
   METHODS,
   PROTOCOL_VERSION,
@@ -39,8 +47,11 @@ import {
   DPR_SCHEME,
   emptyOriginalUriFor,
   proposalUriFor,
+  requestIdOfPath,
   type DprFileSystemProvider,
 } from './fs-provider.ts'
+import { discoverHostLinks } from './host-registry.ts'
+import type { HostLink } from './host-registry.ts'
 import type { HistoryEntry, ReviewHistoryStore } from './history-store.ts'
 import type { Messages } from './i18n.ts'
 import { ReviewSession } from './review-session.ts'
@@ -54,6 +65,7 @@ const REPORT_FILE = 'ext-selftest.json'
 const CLIENT_WAIT_MS = 8000
 const DECISION_WAIT_MS = 12_000
 const UI_WAIT_MS = 6000
+const ROUTING_SETTLE_MS = 300
 
 export interface SelfTestStep {
   name: string
@@ -61,10 +73,22 @@ export interface SelfTestStep {
   detail: string
 }
 
+/** One discovered Host, recorded in the report (multi-Host evidence). */
+export interface SelfTestHostReport {
+  key: string
+  label: string
+  legacy: boolean
+  socketPath: string
+  connected: boolean
+  pending: number
+}
+
 export interface SelfTestReport {
   ok: boolean
   vscodeVersion: string
   steps: SelfTestStep[]
+  /** Discovered Hosts at the end of the multi-Host phase (ADR 0002). */
+  hosts?: SelfTestHostReport[]
   error?: string
 }
 
@@ -75,9 +99,14 @@ export interface SelfTestOptions {
   provider: DprFileSystemProvider
   /** Real persistence helper over `context.workspaceState` (Phase 3 history). */
   history: ReviewHistoryStore
-  /** Route the dpr.* commands to the self-test session while it runs. */
-  setSession(session: ReviewSession | undefined): void
+  /** Route the dpr.* commands to the self-test sessions while it runs. */
+  setSessions(sessions: readonly ReviewSession[] | undefined): void
   log?(message: string): void
+}
+
+interface MockHostIdentity {
+  key: string
+  label: string
 }
 
 interface DecisionWaiter {
@@ -110,6 +139,8 @@ function randomSuffix(): string {
 class MockHost {
   readonly stateDir: string
   readonly socketPath: string
+  readonly tokenPath: string
+  readonly identity: MockHostIdentity | undefined
   private readonly token: string
   private server: Server | undefined
   private socket: Socket | undefined
@@ -119,15 +150,17 @@ class MockHost {
   private readonly waiters = new Map<string, DecisionWaiter>()
   private readonly outcomes = new Map<string, DecisionOutcome>()
 
-  constructor(stateDir: string) {
+  constructor(stateDir: string, identity?: MockHostIdentity) {
     this.stateDir = stateDir
     this.socketPath = join(stateDir, 'ipc.sock')
+    this.tokenPath = join(stateDir, 'token')
+    this.identity = identity
     this.token = randomBytes(32).toString('hex')
   }
 
   async start(): Promise<void> {
     await fs.mkdir(this.stateDir, { recursive: true, mode: 0o700 })
-    await fs.writeFile(join(this.stateDir, 'token'), this.token, { encoding: 'utf8', mode: 0o600 })
+    await fs.writeFile(this.tokenPath, this.token, { encoding: 'utf8', mode: 0o600 })
     const server = createServer((socket) => this.accept(socket))
     this.server = server
     await new Promise<void>((resolve, reject) => {
@@ -142,8 +175,36 @@ class MockHost {
     await fs.chmod(this.socketPath, 0o600).catch(() => undefined)
   }
 
+  /** Publish the 0.3.0 `meta.json` descriptor so discovery can find this mock. */
+  async publishDescriptor(pluginVersion: string): Promise<void> {
+    if (this.identity === undefined) return
+    const descriptor: HostDescriptor = {
+      key: this.identity.key,
+      label: this.identity.label,
+      pid: process.pid,
+      pluginVersion,
+      startedAt: Date.now(),
+      stateDir: this.stateDir,
+      socketPath: this.socketPath,
+      tokenPath: this.tokenPath,
+    }
+    await fs.writeFile(join(this.stateDir, 'meta.json'), JSON.stringify(descriptor), {
+      encoding: 'utf8',
+      mode: 0o600,
+    })
+  }
+
   get clientConnected(): boolean {
     return this.authed && this.socket !== undefined
+  }
+
+  /** Number of decisions this mock received (used to prove routing isolation). */
+  get decisionCount(): number {
+    return this.decisions.size
+  }
+
+  hasDecision(requestId: string): boolean {
+    return this.decisions.has(requestId)
   }
 
   async waitForClient(timeoutMs: number): Promise<boolean> {
@@ -199,7 +260,8 @@ class MockHost {
       })
     }
     await fs.unlink(this.socketPath).catch(() => undefined)
-    await fs.unlink(join(this.stateDir, 'token')).catch(() => undefined)
+    await fs.unlink(this.tokenPath).catch(() => undefined)
+    await fs.unlink(join(this.stateDir, 'meta.json')).catch(() => undefined)
   }
 
   private accept(socket: Socket): void {
@@ -268,7 +330,14 @@ class MockHost {
         return
       }
       this.authed = true
-      this.reply(message.id, { ok: true, serverVersion: 'dpr-ext-selftest-mock', stateDir: this.stateDir })
+      this.reply(message.id, {
+        ok: true,
+        serverVersion: 'dpr-ext-selftest-mock',
+        stateDir: this.stateDir,
+        ...(this.identity !== undefined
+          ? { hostKey: this.identity.key, hostLabel: this.identity.label }
+          : {}),
+      })
       return
     }
 
@@ -355,12 +424,18 @@ function findDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
 }
 
 function hasDiffTab(uri: vscode.Uri): boolean {
+  return findDiffTab(uri) !== undefined
+}
+
+function findDiffTab(uri: vscode.Uri): vscode.Tab | undefined {
   const target = uri.toString()
-  return vscode.window.tabGroups.all.some((group) =>
-    group.tabs.some(
-      (tab) => tab.input instanceof vscode.TabInputTextDiff && tab.input.modified.toString() === target,
-    ),
-  )
+  for (const group of vscode.window.tabGroups.all) {
+    for (const tab of group.tabs) {
+      const input = tab.input
+      if (input instanceof vscode.TabInputTextDiff && input.modified.toString() === target) return tab
+    }
+  }
+  return undefined
 }
 
 async function closeSelfTestTabs(): Promise<void> {
@@ -369,7 +444,7 @@ async function closeSelfTestTabs(): Promise<void> {
     for (const tab of group.tabs) {
       const input = tab.input
       if (input instanceof vscode.TabInputTextDiff && input.modified.scheme === DPR_SCHEME) {
-        const requestId = input.modified.path.split('/').filter((segment) => segment.length > 0)[0]
+        const requestId = requestIdOfPath(input.modified.path)
         if (requestId !== undefined && requestId.startsWith(SELF_TEST_ID_PREFIX)) tabs.push(tab)
       }
     }
@@ -377,7 +452,7 @@ async function closeSelfTestTabs(): Promise<void> {
   if (tabs.length > 0) await vscode.window.tabGroups.close(tabs)
 }
 
-function buildFixture(directory: string, requestId: string): ReviewRequestFixture {
+function buildFixture(directory: string, requestId: string, host?: MockHostIdentity): ReviewRequestFixture {
   const targetPath = join(directory, `${requestId}.ts`)
   const before = 'export const value = 1\n'
   const after = 'export const value = 2\n'
@@ -402,6 +477,7 @@ function buildFixture(directory: string, requestId: string): ReviewRequestFixtur
     afterSha256: sha256(after),
     targetKind: 'direct-workspace',
     mode: 'tool-level',
+    ...(host !== undefined ? { hostKey: host.key, hostLabel: host.label } : {}),
   }
   return { requestId, params, absolutePath: targetPath, targetPath, before, after }
 }
@@ -434,14 +510,45 @@ function buildNewFileFixture(directory: string, requestId: string): ReviewReques
   return { requestId, params, absolutePath: targetPath, targetPath, before: '', after }
 }
 
+interface SessionFixture {
+  stateDir: string
+  socketPath?: string
+  tokenPath?: string
+  hostKey?: string
+  hostLabel?: string
+}
+
+function buildSession(
+  fixture: SessionFixture,
+  options: SelfTestOptions,
+  log: (message: string) => void,
+): ReviewSession {
+  return new ReviewSession({
+    stateDir: fixture.stateDir,
+    ...(fixture.socketPath !== undefined ? { socketPath: fixture.socketPath } : {}),
+    ...(fixture.tokenPath !== undefined ? { tokenPath: fixture.tokenPath } : {}),
+    ...(fixture.hostKey !== undefined ? { hostKey: fixture.hostKey } : {}),
+    ...(fixture.hostLabel !== undefined ? { hostLabel: fixture.hostLabel } : {}),
+    clientVersion: options.clientVersion,
+    messages: options.messages,
+    provider: options.provider,
+    quiet: true,
+    onLog: log,
+  })
+}
+
 /**
- * Run the mock-Host self-test. Scenarios:
+ * Run the mock-Host self-test. Legacy scenarios:
  *  1. accept with a user edit (proposal document + language + provider save);
  *  2. reject a new file (empty `dpr:` left side);
  *  3. reject-all drains a fresh pending review.
  *
  * Phase 3 additionally instantiates the real pending/history TreeDataProviders
  * and exercises the real `ReviewHistoryStore` over the workspace state.
+ *
+ * Phase 4 (ADR 0002) adds two Hosts under `<root>/hosts/<key>` with real
+ * `meta.json` descriptors, then checks discovery, the aggregated pending view,
+ * per-Host decision routing and the Host-labelled diff title.
  *
  * Always resolves with a report (except when no workspace folder is open, in
  * which case `error` describes that limitation).
@@ -461,6 +568,15 @@ export async function runExtensionSelfTest(options: SelfTestOptions): Promise<Se
   let session: ReviewSession | undefined
   let pendingProvider: PendingReviewsProvider | undefined
   let historyProvider: HistoryReviewsProvider | undefined
+  // Multi-Host phase (ADR 0002).
+  let discoveryRoot: string | undefined
+  let alphaMock: MockHost | undefined
+  let betaMock: MockHost | undefined
+  let alphaSession: ReviewSession | undefined
+  let betaSession: ReviewSession | undefined
+  let multiPendingProvider: PendingReviewsProvider | undefined
+  let alphaLink: HostLink | undefined
+  let betaLink: HostLink | undefined
 
   try {
     addStep(
@@ -480,23 +596,19 @@ export async function runExtensionSelfTest(options: SelfTestOptions): Promise<Se
     await mock.start()
     addStep('mock-host', true, `mock Host listening on ${mock.socketPath}`)
 
-    session = new ReviewSession({
-      stateDir: mock.stateDir,
-      socketPath: mock.socketPath,
-      clientVersion: options.clientVersion,
-      messages: options.messages,
-      provider: options.provider,
-      quiet: true,
-      onLog: log,
-    })
-    options.setSession(session)
+    session = buildSession(
+      { stateDir: mock.stateDir, socketPath: mock.socketPath },
+      options,
+      log,
+    )
+    options.setSessions([session])
     session.start()
     const connected = await mock.waitForClient(CLIENT_WAIT_MS)
     addStep('client-connect', connected, `client authenticated with the mock Host within ${CLIENT_WAIT_MS} ms`)
     if (!connected) throw new Error('the extension IPC client did not complete the hello handshake')
 
     // ----- Phase 3: tree providers + real history persistence ---------------
-    pendingProvider = new PendingReviewsProvider(() => session, options.messages)
+    pendingProvider = new PendingReviewsProvider(() => (session === undefined ? [] : [session]), options.messages)
     historyProvider = new HistoryReviewsProvider(options.history, options.messages)
     const syntheticHistory: HistoryEntry = {
       requestId: `${SELF_TEST_ID_PREFIX}history-${randomSuffix()}`,
@@ -742,20 +854,214 @@ export async function runExtensionSelfTest(options: SelfTestOptions): Promise<Se
       `pending=${session.pendingCount} rows=${pendingRowsAfterRejectAll.length} autoAccept=${session.autoAcceptArmed}`,
     )
 
+    // ----- Phase 4 (ADR 0002): multi-Host discovery + routing --------------
+    session.dispose()
+    session = undefined
+    options.setSessions([])
+    discoveryRoot = join(tempDir, 'multi-root')
+    const alphaIdentity: MockHostIdentity = { key: 'alpha', label: 'Alpha Desktop' }
+    const betaIdentity: MockHostIdentity = { key: 'beta', label: 'Beta TUI' }
+    alphaMock = new MockHost(join(discoveryRoot, 'hosts', alphaIdentity.key), alphaIdentity)
+    betaMock = new MockHost(join(discoveryRoot, 'hosts', betaIdentity.key), betaIdentity)
+    await alphaMock.start()
+    await betaMock.start()
+    await alphaMock.publishDescriptor(options.clientVersion)
+    await betaMock.publishDescriptor(options.clientVersion)
+
+    const links = await discoverHostLinks(discoveryRoot)
+    const discoveredKeys = links.map((link) => link.key)
+    addStep(
+      'multi-host-discovery',
+      links.length === 2 &&
+        discoveredKeys[0] === alphaIdentity.key &&
+        discoveredKeys[1] === betaIdentity.key &&
+        links[0]?.label === alphaIdentity.label &&
+        links[1]?.label === betaIdentity.label,
+      `root=${discoveryRoot} links=${links
+        .map((link) => `${link.key}:${link.label}${link.legacy ? ':legacy' : ''}`)
+        .join(', ')}`,
+    )
+    alphaLink = links.find((link) => link.key === alphaIdentity.key)
+    betaLink = links.find((link) => link.key === betaIdentity.key)
+    if (alphaLink === undefined || betaLink === undefined) {
+      throw new Error('multi-Host discovery did not return both mock Hosts')
+    }
+    if (alphaLink.legacy || betaLink.legacy) {
+      throw new Error('multi-Host discovery marked a per-Host namespace as legacy')
+    }
+
+    alphaSession = buildSession(
+      {
+        stateDir: alphaLink.hostDir,
+        socketPath: alphaLink.socketPath,
+        tokenPath: alphaLink.tokenPath,
+        hostKey: alphaLink.key,
+        hostLabel: alphaLink.label,
+      },
+      options,
+      log,
+    )
+    betaSession = buildSession(
+      {
+        stateDir: betaLink.hostDir,
+        socketPath: betaLink.socketPath,
+        tokenPath: betaLink.tokenPath,
+        hostKey: betaLink.key,
+        hostLabel: betaLink.label,
+      },
+      options,
+      log,
+    )
+    options.setSessions([alphaSession, betaSession])
+    alphaSession.start()
+    betaSession.start()
+    const alphaConnected = await alphaMock.waitForClient(CLIENT_WAIT_MS)
+    const betaConnected = await betaMock.waitForClient(CLIENT_WAIT_MS)
+    addStep(
+      'multi-host-connect',
+      alphaConnected && betaConnected,
+      `alpha connected=${alphaConnected} (hello hostKey=${alphaSession.hostKey ?? 'none'}) beta connected=${betaConnected} (hello hostKey=${
+        betaSession.hostKey ?? 'none'
+      })`,
+    )
+    if (!alphaConnected || !betaConnected) throw new Error('the multi-Host IPC clients did not connect')
+
+    multiPendingProvider = new PendingReviewsProvider(
+      () => [alphaSession, betaSession].filter((candidate): candidate is ReviewSession => candidate !== undefined),
+      options.messages,
+    )
+
+    const alphaFixture = buildFixture(tempDir, `${SELF_TEST_ID_PREFIX}alpha-${randomSuffix()}`, alphaIdentity)
+    const betaFixture = buildFixture(tempDir, `${SELF_TEST_ID_PREFIX}beta-${randomSuffix()}`, betaIdentity)
+    await fs.writeFile(alphaFixture.targetPath, alphaFixture.before, 'utf8')
+    await fs.writeFile(betaFixture.targetPath, betaFixture.before, 'utf8')
+    alphaMock.setOutcome(alphaFixture.requestId, 'committed')
+    betaMock.setOutcome(betaFixture.requestId, 'rejected')
+    alphaMock.sendReviewRequest(alphaFixture.params)
+    betaMock.sendReviewRequest(betaFixture.params)
+
+    const alphaPending = await waitFor(
+      () => (alphaSession?.hasPending(alphaFixture.requestId) === true ? true : undefined),
+      UI_WAIT_MS,
+    )
+    const betaPending = await waitFor(
+      () => (betaSession?.hasPending(betaFixture.requestId) === true ? true : undefined),
+      UI_WAIT_MS,
+    )
+    const aggregatePending = (alphaSession.pendingCount ?? 0) + betaSession.pendingCount
+    addStep(
+      'multi-host-pending',
+      alphaPending === true && betaPending === true && aggregatePending === 2,
+      `alphaPending=${alphaPending === true} betaPending=${betaPending === true} total=${aggregatePending}`,
+    )
+
+    const multiRows = await childrenOf(multiPendingProvider)
+    const alphaRow = multiRows.find((row) => row.requestId === alphaFixture.requestId)
+    const betaRow = multiRows.find((row) => row.requestId === betaFixture.requestId)
+    addStep(
+      'multi-host-pending-view',
+      multiRows.length === 2 &&
+        alphaRow?.hostKey === alphaIdentity.key &&
+        betaRow?.hostKey === betaIdentity.key &&
+        alphaRow.description ===
+          `${options.messages.pendingPickDescription('tool-level', 'write')}${options.messages.hostSuffix(
+            alphaIdentity.label,
+          )}` &&
+        betaRow.description ===
+          `${options.messages.pendingPickDescription('tool-level', 'write')}${options.messages.hostSuffix(
+            betaIdentity.label,
+          )}`,
+      `rows=${multiRows.length} alphaRow=${alphaRow?.hostKey ?? 'MISSING'} betaRow=${
+        betaRow?.hostKey ?? 'MISSING'
+      } alphaDescription=${JSON.stringify(alphaRow?.description ?? null)}`,
+    )
+
+    const alphaProposalUri = proposalUriFor(
+      alphaFixture.requestId,
+      alphaFixture.params.displayPath,
+      alphaIdentity.key,
+    )
+    const alphaReview = alphaSession.pendingList().find(
+      (review) => review.params.requestId === alphaFixture.requestId,
+    )
+    const alphaTab = await waitFor(() => findDiffTab(alphaProposalUri), UI_WAIT_MS)
+    addStep(
+      'multi-host-diff-title',
+      alphaReview !== undefined &&
+        alphaReview.diffTitle.includes(alphaIdentity.label) &&
+        alphaTab !== undefined,
+      `diffTitle=${JSON.stringify(alphaReview?.diffTitle ?? null)} tabFound=${alphaTab !== undefined} tabLabel=${JSON.stringify(
+        alphaTab?.label ?? null,
+      )}`,
+    )
+
+    // A decision must reach only the mock Host that issued the request.
+    await vscode.commands.executeCommand('dpr.accept', { requestId: alphaFixture.requestId })
+    const alphaDecision = await alphaMock.waitForDecision(alphaFixture.requestId, DECISION_WAIT_MS)
+    await waitFor(() => (alphaSession?.pendingCount === 0 ? true : undefined), UI_WAIT_MS)
+    await delay(ROUTING_SETTLE_MS)
+    const betaUntouched = betaMock.hasDecision(betaFixture.requestId) === false && betaSession.hasPending(betaFixture.requestId)
+    addStep(
+      'multi-host-routing',
+      alphaDecision.status === 'accept' &&
+        alphaDecision.nonce === alphaFixture.params.nonce &&
+        betaUntouched &&
+        betaMock.decisionCount === 0,
+      `alphaStatus=${alphaDecision.status} alphaNonceMatches=${
+        alphaDecision.nonce === alphaFixture.params.nonce
+      } betaDecisionReceived=${betaMock.hasDecision(betaFixture.requestId)} betaPending=${
+        betaSession.hasPending(betaFixture.requestId)
+      } alphaDecisionCount=${alphaMock.decisionCount} betaDecisionCount=${betaMock.decisionCount}`,
+    )
+
+    await vscode.commands.executeCommand('dpr.reject', {
+      requestId: betaFixture.requestId,
+      reason: 'multi-host self-test rejection',
+      skipPrompt: true,
+    })
+    const betaDecision = await betaMock.waitForDecision(betaFixture.requestId, DECISION_WAIT_MS)
+    addStep(
+      'multi-host-routing-reject',
+      betaDecision.status === 'reject' &&
+        betaDecision.nonce === betaFixture.params.nonce &&
+        alphaMock.decisionCount === 1,
+      `betaStatus=${betaDecision.status} betaNonceMatches=${
+        betaDecision.nonce === betaFixture.params.nonce
+      } alphaDecisionCount=${alphaMock.decisionCount} betaDecisionCount=${betaMock.decisionCount}`,
+    )
+
+    report.hosts = links.map((link) => ({
+      key: link.key,
+      label: link.label,
+      legacy: link.legacy,
+      socketPath: link.socketPath,
+      connected:
+        link.key === alphaIdentity.key
+          ? alphaMock?.clientConnected === true
+          : betaMock?.clientConnected === true,
+      pending:
+        link.key === alphaIdentity.key
+          ? (alphaSession?.pendingCount ?? 0)
+          : (betaSession?.pendingCount ?? 0),
+    }))
+
     report.ok = steps.every((step) => step.ok)
   } catch (error) {
     report.error = describeError(error)
     addStep('exception', false, report.error)
   } finally {
-    options.setSession(undefined)
+    options.setSessions([])
     try {
       pendingProvider?.dispose()
       historyProvider?.dispose()
+      multiPendingProvider?.dispose()
     } catch (error) {
       log(`self-test tree provider cleanup failed: ${describeError(error)}`)
     }
     try {
       session?.dispose()
+      alphaSession?.dispose()
+      betaSession?.dispose()
     } catch (error) {
       log(`self-test session cleanup failed: ${describeError(error)}`)
     }
@@ -766,6 +1072,8 @@ export async function runExtensionSelfTest(options: SelfTestOptions): Promise<Se
     }
     try {
       await mock?.stop()
+      await alphaMock?.stop()
+      await betaMock?.stop()
     } catch (error) {
       log(`mock Host cleanup failed: ${describeError(error)}`)
     }

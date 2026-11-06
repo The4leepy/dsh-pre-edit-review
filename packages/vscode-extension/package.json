@@ -3,7 +3,7 @@
   "displayName": "Pre-edit Review for DeepSeek Harness",
   "description": "Unofficial community extension: review agent-proposed file changes as an editable diff before anything is written to disk. Requires the dsh-pre-edit-review DSH Host plugin.",
   "publisher": "The4leepy",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "private": true,
   "engines": {
     "vscode": "^1.145.0"
@@ -160,25 +160,31 @@
       {
         "command": "dpr.accept",
         "key": "ctrl+alt+a",
-        "mac": "ctrl+alt+a",
+        "mac": "cmd+shift+a",
         "when": "dpr.hasPending"
       },
       {
         "command": "dpr.reject",
         "key": "ctrl+alt+r",
-        "mac": "ctrl+alt+r",
+        "mac": "cmd+shift+backspace",
         "when": "dpr.hasPending"
       },
       {
         "command": "dpr.accept",
         "key": "ctrl+alt+enter",
-        "mac": "ctrl+alt+enter",
+        "mac": "cmd+alt+a",
         "when": "dpr.hasPending"
       },
       {
         "command": "dpr.reject",
         "key": "ctrl+alt+backspace",
-        "mac": "ctrl+alt+backspace",
+        "mac": "cmd+alt+backspace",
+        "when": "dpr.hasPending"
+      },
+      {
+        "command": "dpr.reject",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+ctrl+d",
         "when": "dpr.hasPending"
       }
     ],

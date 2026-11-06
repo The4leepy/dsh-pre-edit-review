@@ -2,10 +2,14 @@
  * UDS client for the Host plugin's JSON-RPC 2.0 / NDJSON server.
  *
  * Connection lifecycle:
- *   connecting → hello (token read from `<stateDir>/token`, retried while the
- *   Host has not written it yet) → connected → on drop, an automatic 3 s
- *   backoff reconnect. Every attempt re-reads the token, so a Host restart with
- *   a fresh token is picked up transparently.
+ *   connecting → hello (token read from `tokenPath`, which defaults to
+ *   `<stateDir>/token`, retried while the Host has not written it yet) →
+ *   connected → on drop, an automatic 3 s backoff reconnect. Every attempt
+ *   re-reads the token, so a Host restart with a fresh token is picked up
+ *   transparently.
+ *
+ * Multi-Host (ADR 0002): one client = one Host. `hostKey`/`hostLabel` come from
+ * discovery and are refreshed from the `hello` result when the Host sends them.
  *
  * The client only sends `hello` / `decision`; it answers a server initiated
  * `ping` if one ever arrives (the Host currently does not send it).
@@ -15,6 +19,7 @@ import { readFile } from 'node:fs/promises'
 import { createConnection, type Socket } from 'node:net'
 import { join } from 'node:path'
 
+import { isHostKey } from '../../shared/src/host.ts'
 import {
   METHODS,
   PROTOCOL_VERSION,
@@ -59,9 +64,15 @@ export interface IpcConnectionInfo {
 }
 
 export interface IpcClientOptions {
-  /** Directory that holds `ipc.sock` and `token`. */
+  /** Directory that holds the Host's `ipc.sock` and `token` (a per-Host namespace in 0.3.0). */
   stateDir: string
   socketPath?: string
+  /** Token file path; defaults to `<stateDir>/token`. */
+  tokenPath?: string
+  /** Host identity from discovery (ADR 0002); a hello result may refresh it. */
+  hostKey?: string
+  /** Human-readable Host label from discovery; a hello result may refresh it. */
+  hostLabel?: string
   clientName?: string
   clientVersion: string
   reconnectDelayMs?: number
@@ -89,7 +100,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
 export class IpcClient {
   private readonly options: IpcClientOptions
   private readonly socketPath: string
-  private readonly tokenPath: string
+  private readonly tokenFile: string
   private readonly reconnectDelayMs: number
   private readonly connectTimeoutMs: number
   private readonly tokenWaitMs: number
@@ -104,11 +115,14 @@ export class IpcClient {
   private attempt = 0
   private disposed = false
   private everConnected = false
+  /** Identity announced by the Host in its hello result (wins over discovery). */
+  private adoptedHostKey: string | undefined
+  private adoptedHostLabel: string | undefined
 
   constructor(options: IpcClientOptions) {
     this.options = options
     this.socketPath = options.socketPath ?? join(options.stateDir, 'ipc.sock')
-    this.tokenPath = join(options.stateDir, 'token')
+    this.tokenFile = options.tokenPath ?? join(options.stateDir, 'token')
     this.reconnectDelayMs = options.reconnectDelayMs ?? DEFAULT_RECONNECT_MS
     this.connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
     this.tokenWaitMs = options.tokenWaitMs ?? DEFAULT_TOKEN_WAIT_MS
@@ -129,6 +143,19 @@ export class IpcClient {
 
   get stateDir(): string {
     return this.options.stateDir
+  }
+
+  get tokenPath(): string {
+    return this.tokenFile
+  }
+
+  /** Host identity: hello result first, discovery second. */
+  get hostKey(): string | undefined {
+    return this.adoptedHostKey ?? this.options.hostKey
+  }
+
+  get hostLabel(): string | undefined {
+    return this.adoptedHostLabel ?? this.options.hostLabel
   }
 
   /** Start (or resume) connecting. Safe to call repeatedly. */
@@ -195,9 +222,10 @@ export class IpcClient {
       if (!isRecord(result) || result['ok'] !== true) {
         throw new Error('Host rejected the hello handshake')
       }
+      this.adoptIdentity(result)
       this.everConnected = true
       this.state = 'connected'
-      this.log(`connected to ${this.socketPath}`)
+      this.log(`connected to ${this.socketPath} (hostKey=${this.hostKey ?? 'legacy'})`)
       this.options.onConnectionChanged({ connected: true, paused: result['paused'] === true || result['bypass'] === true })
     } catch (error) {
       if (!this.isCurrent(attempt)) return
@@ -221,7 +249,7 @@ export class IpcClient {
     const deadline = Date.now() + this.tokenWaitMs
     for (;;) {
       try {
-        const raw = await readFile(this.tokenPath, 'utf8')
+        const raw = await readFile(this.tokenFile, 'utf8')
         const token = raw.trim()
         if (token.length >= 32) return token
       } catch {
@@ -229,10 +257,18 @@ export class IpcClient {
       }
       if (!this.isCurrent(attempt)) return undefined
       if (Date.now() >= deadline) {
-        throw new Error(`token not available at ${this.tokenPath} (waited ${this.tokenWaitMs} ms)`)
+        throw new Error(`token not available at ${this.tokenFile} (waited ${this.tokenWaitMs} ms)`)
       }
       await delay(250)
     }
+  }
+
+  /** Remember who answered the hello handshake (the Host is authoritative). */
+  private adoptIdentity(result: Record<string, unknown>): void {
+    const hostKey = result['hostKey']
+    if (typeof hostKey === 'string' && isHostKey(hostKey)) this.adoptedHostKey = hostKey
+    const hostLabel = result['hostLabel']
+    if (typeof hostLabel === 'string' && hostLabel.length > 0) this.adoptedHostLabel = hostLabel
   }
 
   private async openSocket(attempt: number): Promise<Socket | undefined> {

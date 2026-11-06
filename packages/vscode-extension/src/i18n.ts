@@ -19,6 +19,8 @@ export interface HistoryTooltipEntry {
   outcome: string
   edited: boolean
   at: Date
+  /** Owning Host key for non-legacy entries (ADR 0002). */
+  hostKey?: string
 }
 
 export interface Messages {
@@ -28,21 +30,33 @@ export interface Messages {
   readonly statusConnected: string
   readonly statusOffline: string
   readonly statusTooltip: (stateDir: string, clientVersion: string) => string
-  pendingSuffix(count: number): string
+  /** Aggregate "N hosts connected" line (multi-Host, ADR 0002). */
+  statusConnectedHosts(count: number): string
+  /** One tooltip line per connected/discovered Host. */
+  hostStatusLine(label: string, connected: boolean, pending: number, inactive: boolean): string
+  /** Tooltip hint when discovery has not found any Host yet. */
+  readonly noHostsFound: string
+  /** Display label used for the legacy root-layout Host in multi-Host surfaces. */
+  readonly legacyHostLabel: string
   readonly autoAcceptStatus: string
   autoAcceptTooltip(until: Date): string
-  /** Appended to the status bar while the Host reports review paused (`/review off`). */
-  readonly pausedSuffix: string
-  readonly pausedTooltip: string
+  /** Appended to the status bar while every connected Host reports review inactive. */
+  readonly inactiveSuffix: string
+  readonly inactiveTooltip: string
 
   // UI actions
   readonly accept: string
   readonly reject: string
   readonly firstReviewHint: string
-  pendingStatus(count: number): string
-  readonly diffTitle: (displayPath: string) => string
+  pendingStatus(count: number, hostCount: number): string
+  diffTitle(displayPath: string, hostLabel?: string): string
   readonly pendingPickPlaceholder: string
   pendingPickDescription(mode: string, toolName: string): string
+  /** ` · <label>` suffix for multi-Host rows/items. */
+  hostSuffix(label: string): string
+
+  // Routing (multi-Host)
+  ambiguousRoutingError(labels: readonly string[]): string
 
   // Reject flow
   readonly rejectReasonPrompt: string
@@ -76,16 +90,21 @@ export interface Messages {
   readonly autoAcceptDisabled: string
   readonly autoAcceptConfirm: string
   readonly autoAcceptConfirmYes: string
+  /** Confirmation when auto-accept is armed for several Hosts at once. */
+  acceptAllConfirmMulti(hosts: string): string
+  /** Confirmation before rejecting every pending review on several Hosts. */
+  rejectAllConfirmMulti(hosts: string): string
+  readonly rejectAllConfirmMultiYes: string
 
   // Pending queue view
   readonly openItemTitle: string
   pendingBadgeTooltip(count: number): string
-  pendingItemTooltip(absolutePath: string, openedAt: Date, operation: string): string
+  pendingItemTooltip(absolutePath: string, openedAt: Date, operation: string, hostLabel?: string): string
   reopenReviewHint(displayPath: string): string
 
   // History view
   historyStatusLabel(status: HistoryStatus): string
-  historyDescription(status: HistoryStatus, mode: string, toolName: string, edited: boolean): string
+  historyDescription(status: HistoryStatus, mode: string, toolName: string, edited: boolean, hostKey?: string): string
   historyItemTooltip(entry: HistoryTooltipEntry): string
   readonly clearHistoryConfirm: string
   readonly clearHistoryConfirmYes: string
@@ -124,20 +143,33 @@ const en: Messages = {
   statusConnected: 'connected',
   statusOffline: 'offline',
   statusTooltip: (stateDir, clientVersion) =>
-    `DeepSeek Pre-edit Review ${clientVersion}\nstateDir: ${stateDir}\nClick to show pending reviews.`,
-  pendingSuffix: (count) => ` (${count} pending)`,
+    `DeepSeek Pre-edit Review ${clientVersion}\nstateDir (root): ${stateDir}\nClick to show pending reviews.`,
+  statusConnectedHosts: (count) => (count === 1 ? '1 host connected' : `${count} hosts connected`),
+  hostStatusLine: (label, connected, pending, inactive) =>
+    `${label}: ${connected ? 'connected' : 'offline'} · ${pending} pending${inactive ? ' · review OFF' : ''}`,
+  noHostsFound: 'No Host discovered under the state directory yet. Start DeepSeek Harness with the plugin enabled.',
+  legacyHostLabel: 'legacy Host',
   autoAcceptStatus: 'AUTO-ACCEPT',
   autoAcceptTooltip: (until) => `Auto-accept armed until ${until.toLocaleTimeString()} — click to disarm.`,
-  pausedSuffix: ' · OFF',
-  pausedTooltip: 'Review is paused for a session on this Host: its writes are NOT reviewed. Use /review on to restore review.',
+  inactiveSuffix: ' · OFF',
+  inactiveTooltip: 'Review is inactive: writes are NOT reviewed until a session runs /review on.',
   accept: 'Accept',
   reject: 'Reject',
   firstReviewHint:
     'A file change is waiting for review. An editable diff is open — click ✓ or ✗ in the editor title bar, or press Ctrl+Alt+A (accept) / Ctrl+Alt+R (reject).',
-  pendingStatus: (count) => `Pre-edit Review: ${count} pending — click to review`,
-  diffTitle: (displayPath) => `Pre-edit Review: ${displayPath}`,
+  pendingStatus: (count, hostCount) =>
+    hostCount > 1
+      ? `Pre-edit Review: ${count} pending across ${hostCount} hosts — click to review`
+      : `Pre-edit Review: ${count} pending — click to review`,
+  diffTitle: (displayPath, hostLabel) =>
+    hostLabel === undefined
+      ? `Pre-edit Review: ${displayPath}`
+      : `Pre-edit Review: ${displayPath} [${hostLabel}]`,
   pendingPickPlaceholder: 'Pending review requests (select one to open its diff)',
   pendingPickDescription: (mode, toolName) => `${mode} · ${toolName}`,
+  hostSuffix: (label) => ` · ${label}`,
+  ambiguousRoutingError: (labels) =>
+    `Cannot tell which Host owns this review (candidates: ${labels.join(', ')}). Open the review diff and try again.`,
   rejectReasonPrompt: 'Reason for rejecting this change (optional)',
   rejectReasonPlaceholder: 'The agent will receive this reason; leave empty to reject without one',
   outcomeCommitted: (displayPath) => `Committed: ${displayPath}`,
@@ -158,10 +190,10 @@ const en: Messages = {
   noPendingReview: 'No pending pre-edit review.',
   pendingDiscarded: (count) =>
     `Connection to DeepSeek Harness was lost; ${count} pending review(s) were discarded and nothing was committed.`,
-  offlineWarning: 'DeepSeek Pre-edit Review is offline; waiting for the Host to come up (retrying every 3 s).',
+  offlineWarning: 'DeepSeek Pre-edit Review is offline; waiting for a Host to come up (retrying every 3 s).',
   authFailedError: (detail) => `Pre-edit Review authentication failed: ${detail}`,
   reconnectRequested: 'Reconnecting to DeepSeek Harness…',
-  notConnected: 'DeepSeek Pre-edit Review is not connected to the Host.',
+  notConnected: 'DeepSeek Pre-edit Review is not connected to any Host.',
   autoAcceptArmed: (minutes) => `AUTO-ACCEPT is armed for the next ${minutes} minute(s).`,
   autoAcceptDisarmed: 'Auto-accept disarmed.',
   autoAcceptExpired: 'Auto-accept window expired.',
@@ -170,19 +202,27 @@ const en: Messages = {
   autoAcceptConfirm:
     'Arm AUTO-ACCEPT? Every change the agent proposes from now on will be committed without asking, for 5 minutes.',
   autoAcceptConfirmYes: 'Arm AUTO-ACCEPT',
+  acceptAllConfirmMulti: (hosts) =>
+    `Arm AUTO-ACCEPT for ${hosts}? Every change those Hosts propose in the next 5 minutes will be committed without asking.`,
+  rejectAllConfirmMulti: (hosts) => `Reject all pending reviews on ${hosts}? Nothing will be written.`,
+  rejectAllConfirmMultiYes: 'Reject All',
   openItemTitle: 'Open Review',
   pendingBadgeTooltip: (count) => `${count} pending review${count === 1 ? '' : 's'}`,
-  pendingItemTooltip: (absolutePath, openedAt, operation) =>
-    `${absolutePath}\n${operation} · opened ${openedAt.toLocaleString()}`,
+  pendingItemTooltip: (absolutePath, openedAt, operation, hostLabel) =>
+    `${absolutePath}\n${operation} · opened ${openedAt.toLocaleString()}${
+      hostLabel === undefined ? '' : `\nHost: ${hostLabel}`
+    }`,
   reopenReviewHint: (displayPath) =>
     `Review opened: ${displayPath}. Use ✓ or ✗ in the editor title bar (top-right) to accept or reject.`,
   historyStatusLabel: (status) => enHistoryStatus[status],
-  historyDescription: (status, mode, toolName, edited) =>
-    `${enHistoryStatus[status]} · ${mode} · ${toolName}${edited ? ' · edited' : ''}`,
+  historyDescription: (status, mode, toolName, edited, hostKey) =>
+    `${enHistoryStatus[status]} · ${mode} · ${toolName}${edited ? ' · edited' : ''}${
+      hostKey === undefined ? '' : ` · ${hostKey}`
+    }`,
   historyItemTooltip: (entry) =>
     `${entry.displayPath}\n${enHistoryStatus[entry.status]} · ${entry.mode} · ${entry.toolName}\nOutcome: ${
       entry.outcome
-    }${entry.edited ? ' · edited' : ''}\n${entry.at.toLocaleString()}`,
+    }${entry.edited ? ' · edited' : ''}${entry.hostKey === undefined ? '' : `\nHost: ${entry.hostKey}`}\n${entry.at.toLocaleString()}`,
   clearHistoryConfirm:
     'Clear the review history? This deletes the last 50 decision records for this workspace.',
   clearHistoryConfirmYes: 'Clear History',
@@ -202,20 +242,31 @@ const zhCN: Messages = {
   statusConnected: '已连接',
   statusOffline: '离线',
   statusTooltip: (stateDir, clientVersion) =>
-    `DeepSeek 修改前审阅 ${clientVersion}\nstateDir: ${stateDir}\n点击查看待审批队列。`,
-  pendingSuffix: (count) => ` (${count} 待审批)`,
+    `DeepSeek 修改前审阅 ${clientVersion}\nstateDir（根目录）：${stateDir}\n点击查看待审批队列。`,
+  statusConnectedHosts: (count) => `已连接 ${count} 个 Host`,
+  hostStatusLine: (label, connected, pending, inactive) =>
+    `${label}：${connected ? '已连接' : '离线'} · ${pending} 待审批${inactive ? ' · 未启用' : ''}`,
+  noHostsFound: '状态目录下尚未发现任何 Host。请启动已安装插件的 DeepSeek Harness。',
+  legacyHostLabel: '旧版 Host',
   autoAcceptStatus: 'AUTO-ACCEPT',
   autoAcceptTooltip: (until) => `自动接受已启用，截止 ${until.toLocaleTimeString()} — 点击关闭。`,
-  pausedSuffix: ' · 已关闭',
-  pausedTooltip: '本 Host 上有会话已暂停审批：其写操作不再经过审批。输入 /review on 可恢复审批。',
+  inactiveSuffix: ' · 未启用',
+  inactiveTooltip: '审阅未启用：在会话中执行 /review on 之前，写操作不会经过审批。',
   accept: '接受',
   reject: '拒绝',
   firstReviewHint:
     '有新的修改等待审阅：已打开可编辑 diff，请点击编辑器右上角的 ✓ / ✗ 按钮，或按 Ctrl+Alt+A（接受）/ Ctrl+Alt+R（拒绝）。',
-  pendingStatus: (count) => `修改前审阅：${count} 待审批 — 点击审阅`,
-  diffTitle: (displayPath) => `修改前审阅：${displayPath}`,
+  pendingStatus: (count, hostCount) =>
+    hostCount > 1
+      ? `修改前审阅：${count} 待审批（${hostCount} 个 Host） — 点击审阅`
+      : `修改前审阅：${count} 待审批 — 点击审阅`,
+  diffTitle: (displayPath, hostLabel) =>
+    hostLabel === undefined ? `修改前审阅：${displayPath}` : `修改前审阅：${displayPath} [${hostLabel}]`,
   pendingPickPlaceholder: '待审批请求（选择一项打开对应 diff）',
   pendingPickDescription: (mode, toolName) => `${mode} · ${toolName}`,
+  hostSuffix: (label) => ` · ${label}`,
+  ambiguousRoutingError: (labels) =>
+    `无法判断该审阅属于哪个 Host（候选：${labels.join('、')}）。请先打开对应审阅 diff 再操作。`,
   rejectReasonPrompt: '拒绝本次修改的原因（可选）',
   rejectReasonPlaceholder: 'Agent 会收到该原因；留空表示无原因直接拒绝',
   outcomeCommitted: (displayPath) => `已提交：${displayPath}`,
@@ -239,26 +290,34 @@ const zhCN: Messages = {
   offlineWarning: '修改前审阅处于离线状态，正在等待 Host 启动（每 3 秒重试）。',
   authFailedError: (detail) => `修改前审阅鉴权失败：${detail}`,
   reconnectRequested: '正在重新连接 DeepSeek Harness…',
-  notConnected: '修改前审阅尚未连接 Host。',
+  notConnected: '修改前审阅尚未连接任何 Host。',
   autoAcceptArmed: (minutes) => `AUTO-ACCEPT 已启用，接下来 ${minutes} 分钟内的修改将自动接受。`,
   autoAcceptDisarmed: '自动接受已关闭。',
   autoAcceptExpired: '自动接受已到期。',
   autoAcceptDisabled: '自动接受未启用。请先在设置中开启 "dpr.autoAccept"，再执行 dpr.acceptAll。',
   autoAcceptConfirm: '启用 AUTO-ACCEPT？接下来 5 分钟内 Agent 提出的所有修改都会不经确认直接提交。',
   autoAcceptConfirmYes: '启用 AUTO-ACCEPT',
+  acceptAllConfirmMulti: (hosts) =>
+    `为 ${hosts} 启用 AUTO-ACCEPT？接下来 5 分钟内这些 Host 提出的修改都会不经确认直接提交。`,
+  rejectAllConfirmMulti: (hosts) => `拒绝 ${hosts} 上的全部待审批请求？不会写入任何修改。`,
+  rejectAllConfirmMultiYes: '全部拒绝',
   openItemTitle: '打开审阅',
   pendingBadgeTooltip: (count) => `${count} 个待审批`,
-  pendingItemTooltip: (absolutePath, openedAt, operation) =>
-    `${absolutePath}\n${operation} · 打开于 ${openedAt.toLocaleString()}`,
+  pendingItemTooltip: (absolutePath, openedAt, operation, hostLabel) =>
+    `${absolutePath}\n${operation} · 打开于 ${openedAt.toLocaleString()}${
+      hostLabel === undefined ? '' : `\nHost：${hostLabel}`
+    }`,
   reopenReviewHint: (displayPath) =>
     `已打开审阅：${displayPath}。点击编辑器右上角的 ✓ / ✗ 接受或拒绝。`,
   historyStatusLabel: (status) => zhHistoryStatus[status],
-  historyDescription: (status, mode, toolName, edited) =>
-    `${zhHistoryStatus[status]} · ${mode} · ${toolName}${edited ? ' · 已编辑' : ''}`,
+  historyDescription: (status, mode, toolName, edited, hostKey) =>
+    `${zhHistoryStatus[status]} · ${mode} · ${toolName}${edited ? ' · 已编辑' : ''}${
+      hostKey === undefined ? '' : ` · ${hostKey}`
+    }`,
   historyItemTooltip: (entry) =>
     `${entry.displayPath}\n${zhHistoryStatus[entry.status]} · ${entry.mode} · ${entry.toolName}\n结果：${
       entry.outcome
-    }${entry.edited ? ' · 已编辑' : ''}\n${entry.at.toLocaleString()}`,
+    }${entry.edited ? ' · 已编辑' : ''}${entry.hostKey === undefined ? '' : `\nHost：${entry.hostKey}`}\n${entry.at.toLocaleString()}`,
   clearHistoryConfirm: '清空审阅历史？将删除本工作区最近 50 条决策记录。',
   clearHistoryConfirmYes: '清空历史',
   clearHistoryDone: '审阅历史已清空。',

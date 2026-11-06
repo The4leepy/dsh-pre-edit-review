@@ -5,6 +5,17 @@ import { isAbsolute, resolve } from 'node:path'
 export interface RawPluginConfig {
   enabled?: boolean
   mode?: 'review' | 'off'
+  /**
+   * Whether review is active for a session that made no explicit choice.
+   * Default `false` (ADR 0002): a fresh install, an upgrade and a hand-written
+   * profile config that omits this key all start with review inactive. Set
+   * `true` explicitly to review every session by default.
+   */
+  defaultActive?: boolean
+  /** Overrides the detected Host key (`<stateDir>/hosts/<hostKey>/`). */
+  hostKey?: string
+  /** Display label for the Host; defaults to the resolved host key. */
+  hostLabel?: string
   reviewTools?: string[]
   exemptTools?: string[]
   unknownToolPolicy?: 'deny' | 'pass'
@@ -14,7 +25,9 @@ export interface RawPluginConfig {
   fallback?: 'deny' | 'dsh-approval'
   enableAutoAccept?: boolean
   autoAcceptMax?: number
+  /** Root state directory; per-Host data lives under `<stateDir>/hosts/<key>/`. */
   stateDir?: string
+  /** Explicit socket override; by default `<hostDir>/ipc.sock`. */
   socketPath?: string
   clientConnectTimeoutMs?: number
   noticeOnUserEdit?: boolean
@@ -27,6 +40,9 @@ export interface RawPluginConfig {
 export interface PluginConfig {
   enabled: boolean
   mode: 'review' | 'off'
+  defaultActive: boolean
+  hostKey?: string
+  hostLabel?: string
   reviewTools: readonly string[]
   exemptTools: readonly string[]
   unknownToolPolicy: 'deny' | 'pass'
@@ -37,7 +53,7 @@ export interface PluginConfig {
   enableAutoAccept: boolean
   autoAcceptMax: number
   stateDir: string
-  socketPath: string
+  socketPath?: string
   clientConnectTimeoutMs: number
   noticeOnUserEdit: boolean
   allowPause: boolean
@@ -70,6 +86,26 @@ function positiveInt(value: unknown, name: string, fallback: number, min = 1): n
   return value
 }
 
+function booleanValue(value: unknown, name: string, fallback: boolean): boolean {
+  if (value === undefined) return fallback
+  if (typeof value !== 'boolean') fail(`${name} must be a boolean`)
+  return value
+}
+
+/** Trim an optional string; empty (or whitespace-only) means "not set". */
+function optionalString(value: unknown, name: string): string | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') fail(`${name} must be a string`)
+  const trimmed = value.trim()
+  return trimmed.length === 0 ? undefined : trimmed
+}
+
+/** Expand an optional path override; empty means "use the per-Host default". */
+function optionalPath(value: unknown, name: string): string | undefined {
+  const raw = optionalString(value, name)
+  return raw === undefined ? undefined : expandHome(raw)
+}
+
 function stringArray(value: unknown, name: string, fallback: readonly string[]): readonly string[] {
   if (value === undefined) return fallback
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || entry.length === 0)) {
@@ -90,11 +126,19 @@ export function normalizeConfig(raw: unknown): PluginConfig {
   if (fallback !== 'deny' && fallback !== 'dsh-approval') fail('fallback must be "deny" or "dsh-approval"')
 
   const stateDir = expandHome(input.stateDir ?? DEFAULT_STATE_DIR)
-  const socketPath = input.socketPath !== undefined ? expandHome(input.socketPath) : resolve(stateDir, 'ipc.sock')
+  // No root-level default: each Host gets `<stateDir>/hosts/<hostKey>/ipc.sock`.
+  const socketPath = optionalPath(input.socketPath, 'socketPath')
 
   return {
     enabled: input.enabled ?? true,
     mode,
+    // ADR 0002 §1: inactive is the product default. The shipped bundle also
+    // spells it out, but the schema fallback must agree so a profile-level
+    // config row that replaces `config` wholesale cannot silently turn review
+    // back on (that used to fail-close every write after an upgrade).
+    defaultActive: booleanValue(input.defaultActive, 'defaultActive', false),
+    hostKey: optionalString(input.hostKey, 'hostKey'),
+    hostLabel: optionalString(input.hostLabel, 'hostLabel'),
     reviewTools: stringArray(input.reviewTools, 'reviewTools', DEFAULT_REVIEW_TOOLS),
     exemptTools: stringArray(input.exemptTools, 'exemptTools', []),
     unknownToolPolicy,
@@ -107,7 +151,7 @@ export function normalizeConfig(raw: unknown): PluginConfig {
     enableAutoAccept: input.enableAutoAccept ?? true,
     autoAcceptMax: positiveInt(input.autoAcceptMax, 'autoAcceptMax', 20, 1),
     stateDir,
-    socketPath,
+    ...(socketPath !== undefined ? { socketPath } : {}),
     clientConnectTimeoutMs: positiveInt(input.clientConnectTimeoutMs, 'clientConnectTimeoutMs', 3_000, 100),
     noticeOnUserEdit: input.noticeOnUserEdit ?? true,
     allowPause: input.allowPause ?? input.allowBypass ?? true,

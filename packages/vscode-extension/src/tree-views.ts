@@ -3,9 +3,13 @@
  * history.
  *
  * Both providers are deliberately dumb: they read the live `ReviewSession`
- * queue / the persisted history store on every `getChildren()` call and are
+ * queues / the persisted history store on every `getChildren()` call and are
  * refreshed by `refresh()`. That keeps the view correct even if an event is
  * missed and makes the providers easy to instantiate in the self-test.
+ *
+ * Multi-Host (ADR 0002): the pending view flattens every Host's queue and shows
+ * the Host label for non-legacy Hosts; rows carry `{requestId, hostKey}` so a
+ * decision is routed back to the owning Host.
  */
 
 import * as vscode from 'vscode'
@@ -36,28 +40,46 @@ function historyIcon(status: HistoryStatus): vscode.ThemeIcon {
   }
 }
 
+/** Command argument shared by the pending-row click and the inline actions. */
+export interface PendingItemArg {
+  requestId: string
+  /** Present only for non-legacy Hosts. */
+  hostKey?: string
+}
+
 /** One row in the pending queue; a click opens that review's diff. */
 export class PendingReviewTreeItem extends vscode.TreeItem {
   readonly requestId: string
   readonly review: PendingReview
+  /** Owning Host key; undefined for legacy rows (they route by requestId only). */
+  readonly hostKey: string | undefined
 
-  constructor(review: PendingReview, messages: Messages) {
+  constructor(review: PendingReview, messages: Messages, session: ReviewSession) {
     super(review.params.displayPath, vscode.TreeItemCollapsibleState.None)
     this.review = review
     this.requestId = review.params.requestId
-    this.id = this.requestId
-    this.description = messages.pendingPickDescription(review.params.mode, review.params.toolName)
+    this.hostKey = session.isLegacy ? undefined : session.hostKey
+    this.id = this.hostKey === undefined ? this.requestId : `${this.hostKey}/${this.requestId}`
+    const hostLabel = session.isLegacy ? undefined : session.displayLabel
+    const baseDescription = messages.pendingPickDescription(review.params.mode, review.params.toolName)
+    this.description =
+      hostLabel === undefined ? baseDescription : `${baseDescription}${messages.hostSuffix(hostLabel)}`
     this.tooltip = messages.pendingItemTooltip(
       review.params.absolutePath,
       new Date(review.openedAt),
       review.params.operation,
+      hostLabel,
     )
     this.iconPath = new vscode.ThemeIcon('diff')
     this.contextValue = PENDING_CONTEXT_VALUE
+    const argument: PendingItemArg = {
+      requestId: this.requestId,
+      ...(this.hostKey !== undefined ? { hostKey: this.hostKey } : {}),
+    }
     this.command = {
       command: 'dpr.openItem',
       title: messages.openItemTitle,
-      arguments: [{ requestId: this.requestId }],
+      arguments: [argument],
     }
   }
 }
@@ -69,8 +91,14 @@ export class HistoryReviewTreeItem extends vscode.TreeItem {
   constructor(entry: HistoryEntry, messages: Messages) {
     super(entry.displayPath, vscode.TreeItemCollapsibleState.None)
     this.entry = entry
-    this.id = entry.requestId
-    this.description = messages.historyDescription(entry.status, entry.mode, entry.toolName, entry.edited)
+    this.id = entry.hostKey === undefined ? entry.requestId : `${entry.hostKey}/${entry.requestId}`
+    this.description = messages.historyDescription(
+      entry.status,
+      entry.mode,
+      entry.toolName,
+      entry.edited,
+      entry.hostKey,
+    )
     this.tooltip = messages.historyItemTooltip({
       displayPath: entry.displayPath,
       status: entry.status,
@@ -79,6 +107,7 @@ export class HistoryReviewTreeItem extends vscode.TreeItem {
       outcome: entry.outcome,
       edited: entry.edited,
       at: new Date(entry.at),
+      ...(entry.hostKey !== undefined ? { hostKey: entry.hostKey } : {}),
     })
     this.iconPath = historyIcon(entry.status)
     this.contextValue = HISTORY_CONTEXT_VALUE
@@ -87,13 +116,13 @@ export class HistoryReviewTreeItem extends vscode.TreeItem {
 
 export class PendingReviewsProvider implements vscode.TreeDataProvider<PendingReviewTreeItem> {
   private readonly emitter = new vscode.EventEmitter<PendingReviewTreeItem | undefined | void>()
-  private readonly activeSession: () => ReviewSession | undefined
+  private readonly getSessions: () => readonly ReviewSession[]
   private readonly messages: Messages
 
   readonly onDidChangeTreeData: vscode.Event<PendingReviewTreeItem | undefined | void> = this.emitter.event
 
-  constructor(activeSession: () => ReviewSession | undefined, messages: Messages) {
-    this.activeSession = activeSession
+  constructor(getSessions: () => readonly ReviewSession[], messages: Messages) {
+    this.getSessions = getSessions
     this.messages = messages
   }
 
@@ -107,9 +136,13 @@ export class PendingReviewsProvider implements vscode.TreeDataProvider<PendingRe
 
   getChildren(element?: PendingReviewTreeItem): PendingReviewTreeItem[] {
     if (element !== undefined) return []
-    const session = this.activeSession()
-    if (session === undefined) return []
-    return session.pendingList().map((review) => new PendingReviewTreeItem(review, this.messages))
+    const rows: PendingReviewTreeItem[] = []
+    for (const session of this.getSessions()) {
+      for (const review of session.pendingList()) {
+        rows.push(new PendingReviewTreeItem(review, this.messages, session))
+      }
+    }
+    return rows
   }
 
   dispose(): void {

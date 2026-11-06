@@ -47,10 +47,18 @@ export interface HelloResult {
   ok: true
   serverVersion: string
   stateDir: string
-  /** True when at least one live session currently has review paused (`/review off`). */
+  /**
+   * True when review is NOT active for the sessions this Host knows about:
+   * a live session deactivated it (`defaultActive: true`, legacy pause), or no
+   * live session activated it (`defaultActive: false`, the 0.3.0 install default).
+   */
   paused?: boolean
   /** @deprecated legacy field from 0.2.x; `true` means paused. */
   bypass?: boolean
+  /** Host identity for multi-Host clients (ADR 0002); absent on legacy Hosts. */
+  hostKey?: string
+  /** Human-readable Host label (the DSH profile name by default). */
+  hostLabel?: string
 }
 
 export interface DecisionParams {
@@ -110,6 +118,9 @@ export interface ReviewRequestParams {
   afterSha256: string
   targetKind: CommitTargetKind
   mode: 'tool-level' | 'strict'
+  /** Origin Host for multi-Host clients (ADR 0002); absent on legacy Hosts. */
+  hostKey?: string
+  hostLabel?: string
 }
 
 export interface ReviewCancelParams {
@@ -123,12 +134,20 @@ export interface ReviewStateParams {
   detail?: string
 }
 
-/** Review pause state changed: the session skips the pre-edit review (`/review off`). */
+/**
+ * Review activation state changed. In 0.3.0 `paused` means "review is NOT
+ * active" (see `HelloResult.paused`): with `defaultActive: false` it is true
+ * until a session runs `/review on`; with `defaultActive: true` it is true while
+ * a session has run `/review off`.
+ */
 export interface ReviewModeParams {
-  /** Review is paused for the session that toggled `/review off`. */
+  /** Review is not active for the sessions this Host knows about. */
   paused?: boolean
   /** @deprecated legacy field from 0.2.x; `true` means paused. */
   bypass?: boolean
+  /** Host identity for multi-Host clients (ADR 0002). */
+  hostKey?: string
+  hostLabel?: string
 }
 
 /** Whether a `review/mode` payload means "review paused". */

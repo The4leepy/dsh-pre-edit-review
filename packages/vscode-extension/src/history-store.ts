@@ -6,6 +6,9 @@
  * {@link HISTORY_LIMIT} entries. The payload is deliberately small: no file
  * contents, no hashes, only the metadata the history view renders.
  *
+ * Multi-Host (ADR 0002): non-legacy entries also record the owning Host key.
+ * Entries persisted by 0.2.x have no `hostKey` and keep rendering as before.
+ *
  * The store keeps no in-memory cache: it reads straight from the workspace
  * `Memento`, so a corrupt or tampered value can only ever degrade the history
  * view to "empty", never break a review decision.
@@ -35,6 +38,8 @@ export interface HistoryEntry {
   edited: boolean
   /** Epoch milliseconds of the settling decision. */
   at: number
+  /** Owning Host key (ADR 0002); absent for legacy hosts and 0.2.x entries. */
+  hostKey?: string
 }
 
 const HISTORY_STATUSES: ReadonlySet<string> = new Set<string>([
@@ -71,7 +76,8 @@ function isHistoryEntry(value: unknown): value is HistoryEntry {
     typeof value['outcome'] === 'string' &&
     typeof value['edited'] === 'boolean' &&
     typeof value['at'] === 'number' &&
-    Number.isFinite(value['at'])
+    Number.isFinite(value['at']) &&
+    (value['hostKey'] === undefined || typeof value['hostKey'] === 'string')
   )
 }
 
@@ -102,6 +108,7 @@ function cloneEntry(entry: HistoryEntry): HistoryEntry {
     outcome: entry.outcome,
     edited: entry.edited,
     at: entry.at,
+    ...(entry.hostKey !== undefined ? { hostKey: entry.hostKey } : {}),
   }
 }
 

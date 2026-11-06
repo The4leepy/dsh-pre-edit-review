@@ -3,6 +3,15 @@
 > 目标：把本仓库发布为 **@The4leepy** 的公开项目，并让 DSH 用户能安装。
 > 本仓库的贡献者必须只有仓库拥有者一人；发布前请确认提交作者已被统一改写（见 §1.3）。
 
+## 0. 当前状态（2026-11-06）
+
+| 项 | 值 |
+|---|---|
+| 仓库代码版本 | **0.3.0**（ADR 0002：默认未启用 + 多 Host）—— 代码与单测完成，**尚未发布** |
+| 已发布的最新版本 | npm 插件 `0.2.1`、Marketplace 扩展 `0.2.5`、Release tag `v0.2.5` |
+| 0.3.0 发布顺序 | **先发扩展（Marketplace），再发插件（npm）**；0.2.x 扩展连不上 0.3.0 Host |
+| 0.3.0 额外核对 | `market/index.json` 保持已发布的 0.2.1，**npm publish 成功之后**再 `node scripts/build-market-index.mjs` 更新并提交；`engines.dsh` 仍需 `>=0.2.1-rc.5 <0.3.0`（0.3.0 只在 DSH 0.2.2-rc.1 实测） |
+
 ## 1. GitHub
 
 ### 1.1 一次性准备
@@ -39,8 +48,8 @@ git log --format='%an <%ae>' | sort -u
 ### 1.4 Release
 
 ```bash
-git tag -a v0.2.5 -m "extension 0.2.5 / plugin 0.2.1"
-git push origin v0.2.5
+git tag -a v0.3.0 -m "extension 0.3.0 / plugin 0.3.0"
+git push origin v0.3.0
 ```
 
 在 GitHub Release 里附上：
@@ -70,7 +79,7 @@ npm view dsh-pre-edit-review versions
 ```bash
 cd packages/vscode-extension
 npx @vscode/vsce login The4leepy     # 需要 Azure DevOps PAT（Marketplace 权限）
-npx @vscode/vsce publish             # 使用 package.json 版本号（当前 0.2.5）
+npx @vscode/vsce publish             # 使用 package.json 版本号（当前 0.3.0）
 ```
 
 一次性要求：
@@ -110,7 +119,7 @@ https://raw.githubusercontent.com/The4leepy/dsh-pre-edit-review/main/market/inde
 也可以在 DSH 里直接安装，无需任何索引：
 
 ```text
-plugin_manager install_bundle target=dsh-pre-edit-review@0.2.1
+plugin_manager install_bundle target=dsh-pre-edit-review@0.3.0
 ```
 
 或（未发布 npm 时）：
@@ -135,7 +144,9 @@ plugin_manager install_bundle target=<本地 packages/dsh-plugin 绝对路径>
 - 安全边界与漏洞报告见 [security.md](security.md) 与 [SECURITY.md](../SECURITY.md)。
 
 
-## 7. 首次发布进度（2026-11-05）
+## 7. 首次发布进度（2026-11-05，历史快照）
+
+> 以下是当时的过程记录；最终结果见 §8（0.2.x 已全部发布）。0.3.0 尚未发布。
 
 | 渠道 | 状态 | 说明 |
 |---|---|---|
@@ -148,16 +159,27 @@ plugin_manager install_bundle target=<本地 packages/dsh-plugin 绝对路径>
 > 以上两条需要账号凭据，Agent 不会代为登录或保存 token。
 
 
-## 8. 首次发布结果（2026-11-05，最终）
+## 8. 首次发布结果（2026-11-05，最终，0.2.x）
 
 | 渠道 | 状态 | 细节 |
 |---|---|---|
 | GitHub 仓库 | ✅ 已发布 | <https://github.com/The4leepy/dsh-pre-edit-review>；`main`；Contributors 仅 `The4leepy` |
 | GitHub CI | ✅ 通过 | `CI` 工作流：install → typecheck/boundaries/tests → build |
 | GitHub Release | ✅ 自动生成 | tag `v0.2.5` → Release 附带 `deepseek-pre-edit-review-0.2.5.vsix` 与 `dsh-pre-edit-review-0.2.1.tgz` |
-| DSH 插件索引（git 源） | ✅ 已实测可装 | `market/index.json` 固定 commit + `path:/packages/dsh-plugin`；用 `plugin_manager install_bundle` 从该 git spec 安装并成功挂载 |
-| npm | ⏳ 待账号登录 | 见下方命令；发布后把索引切回 npm 源 |
-| VS Code Marketplace | ⏳ 待 PAT | 见下方命令 |
+| DSH 插件索引（npm 源） | ✅ 已发布 | `market/index.json` 指向 npm `dsh-pre-edit-review@0.2.1` |
+| npm | ✅ 已发布 | `dsh-pre-edit-review@0.2.1`（`latest`） |
+| VS Code Marketplace | ✅ 已发布 | `The4leepy.deepseek-pre-edit-review@0.2.5` |
+
+### 8.1 0.3.0 发布清单（待执行）
+
+1. 两处版本对齐到 `0.3.0`：`packages/dsh-plugin/package.json`、`packages/vscode-extension/package.json`（根 `package.json` 同步）；`src/runtime.ts` 的 `PLUGIN_VERSION` 已同步。
+2. `pnpm run check && pnpm run build`；确认 `packages/dsh-plugin/dist/index.mjs` 重建并提交。
+3. **先发扩展**：`cd packages/vscode-extension && npx @vscode/vsce publish`（Marketplace 自动更新，旧扩展连不上 0.3.0 Host）。
+4. 再发插件：`cd packages/dsh-plugin && npm publish --access public`。
+5. npm 发布成功后再 `node scripts/build-market-index.mjs` → 提交 `market/index.json` → `node scripts/check-market-index.mjs`（索引指向未发布的版本会让 raw 安装失败）。
+6. tag `v0.3.0` → push 触发 Release（附 VSIX + npm tgz）。
+7. 发布后核对：`npm view dsh-pre-edit-review version`、Marketplace 页面、raw index URL；两个 profile 各升级一次并跑 `scripts/doctor.sh`。
+
 
 ### 需要仓库所有者执行的两条命令
 
@@ -167,16 +189,16 @@ npm login                       # 账号 The4leepy
 cd packages/dsh-plugin
 npm publish --access public
 # 发布成功后，回到仓库根目录把索引切到 npm 源并推送：
-cd ../.. && node scripts/build-market-index.mjs && git add market/index.json && git commit -m "market: publish 0.2.1 to npm" && git push
+cd ../.. && node scripts/build-market-index.mjs && git add market/index.json && git commit -m "market: publish 0.3.0 to npm" && git push
 
-# 2) VS Code Marketplace（已完成 0.2.5；以后重复发布用同一 PAT）
+# 2) VS Code Marketplace（0.2.x 已完成；0.3.0 发布时重复使用同一 PAT）
 npx @vscode/vsce login The4leepy   # 使用 Azure DevOps PAT（Marketplace: Manage 权限）
 cd packages/vscode-extension && npx @vscode/vsce publish
 ```
 
 ### 用户的其他安装方式（不依赖 npm）
 
-- GitHub Release 里的 `dsh-pre-edit-review-0.2.1.tgz`：`plugin_manager install_bundle target=<绝对路径>/dsh-pre-edit-review-0.2.1.tgz`
+- GitHub Release 里的 `dsh-pre-edit-review-0.3.0.tgz`：`plugin_manager install_bundle target=<绝对路径>/dsh-pre-edit-review-0.3.0.tgz`
 - DSH 索引 raw URL：`https://raw.githubusercontent.com/The4leepy/dsh-pre-edit-review/main/market/index.json`（git 源，当前可用）
 - 本地克隆：`plugin_manager install_bundle target=<repo>/packages/dsh-plugin`
 
@@ -221,7 +243,7 @@ npm view dsh-pre-edit-review version dist.tarball
 ```
 
 > 首次发布时 registry 里可能出现一个 `0.0.0-stage` 版本：这是 npm 的 staged-publish 暂存版本，
-> 不影响 `latest`（确认 `npm view dsh-pre-edit-review version` 为 `0.2.1` 即可）。
+> 不影响 `latest`（确认 `npm view dsh-pre-edit-review version` 为 `0.3.0` 即可）。
 > 之后再次发布建议使用带 **Bypass 2FA** 的 Granular Token，或在命令里加 `--otp=<动态码>`。
 
 然后推送已生成的 npm 源索引（本地提交 `market: publish 0.2.1 to npm`）：

@@ -111,7 +111,11 @@ export class StagingStore {
   /** Append one audit line (hashes and paths only, never file content). */
   async audit(event: Record<string, unknown>): Promise<void> {
     const now = new Date(this.now())
-    const file = join(this.dir, 'audit', `${now.toISOString().slice(0, 7)}.jsonl`)
+    const dir = join(this.dir, 'audit')
+    // Activation commands may run before the async init finished; never lose
+    // the audit line because the directory is not there yet.
+    await mkdir(dir, { recursive: true, mode: 0o700 })
+    const file = join(dir, `${now.toISOString().slice(0, 7)}.jsonl`)
     await chmod(file, 0o600).catch(() => undefined)
     const handle = await open(file, 'a', 0o600)
     try {

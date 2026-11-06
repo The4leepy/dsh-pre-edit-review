@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createActivationRegistry } from '../packages/dsh-plugin/src/activation.ts'
 import { installGate } from '../packages/dsh-plugin/src/gate.ts'
-import { createPauseRegistry } from '../packages/dsh-plugin/src/pause.ts'
 import { createKillSwitch } from '../packages/dsh-plugin/src/kill-switch.ts'
 import { checkHostCapabilities } from '../packages/dsh-plugin/src/index.ts'
 import { normalizeConfig } from '../packages/dsh-plugin/src/config.ts'
@@ -48,8 +48,18 @@ function makeCtx(toolsGetImpl?: (name: string) => unknown): HostContext & { fire
   return ctx
 }
 
-function execFor(name: string): any {
-  return { name, callId: 'c1', arguments: {}, signal: new AbortController().signal }
+function execFor(name: string, agent?: unknown): any {
+  return {
+    name,
+    callId: 'c1',
+    arguments: {},
+    ...(agent !== undefined ? { agent } : {}),
+    signal: new AbortController().signal,
+  }
+}
+
+function sessionAgent(sessionId: string): any {
+  return { id: `agent-${sessionId}`, session: { id: sessionId, append() {} } }
 }
 
 function coordinatorReturning(result: ReviewResult): ReviewCoordinator {
@@ -57,16 +67,40 @@ function coordinatorReturning(result: ReviewResult): ReviewCoordinator {
 }
 
 const passNext = async () => ({ isError: false as const, value: 'passthrough' })
+const noKillSwitch = () => createKillSwitch('/nonexistent-state-dir', 0)
 
-test('kill switch active pausees every tool', async () => {
+test('kill switch active pauses every tool (even an explicitly active session)', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dpr-kill-'))
   await writeFile(join(dir, 'DISABLED'), '', 'utf8')
   const killSwitch = createKillSwitch(dir, 0)
+  const activation = createActivationRegistry(false)
+  const agent = sessionAgent('kill-switch-active')
+  activation.set(agent, true)
+  let reviewed = 0
   const ctx = makeCtx()
-  installGate({ ctx, config: normalizeConfig({}), coordinator: coordinatorReturning({ passthrough: true }), killSwitch, pause: createPauseRegistry() })
+  installGate({
+    ctx,
+    config: normalizeConfig({ defaultActive: false }),
+    coordinator: {
+      review: async () => {
+        reviewed += 1
+        return { isError: false as const, value: 'reviewed' }
+      },
+    } as unknown as ReviewCoordinator,
+    killSwitch,
+    activation,
+  })
   assert.equal(killSwitch.active(), true)
-  const result = await ctx.fire(execFor('write'), passNext)
-  assert.deepEqual(result, { isError: false, value: 'passthrough' })
+  assert.equal(activation.isActive(agent), true)
+  const realToolResult = { isError: false as const, value: 'real-tool-ran' }
+  let nextCalls = 0
+  const result = await ctx.fire(execFor('write', agent), async () => {
+    nextCalls += 1
+    return realToolResult
+  })
+  assert.equal(result, realToolResult)
+  assert.equal(nextCalls, 1)
+  assert.equal(reviewed, 0)
 })
 
 test('kill switch file removal (with cache disabled) deactivates it', async () => {
@@ -78,6 +112,36 @@ test('kill switch file removal (with cache disabled) deactivates it', async () =
   assert.equal(killSwitch.active(), false)
 })
 
+test('kill switch wins over an explicitly active session', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dpr-kill-'))
+  await writeFile(join(dir, 'DISABLED'), '', 'utf8')
+  const activation = createActivationRegistry(false)
+  const agent = sessionAgent('s1')
+  activation.set(agent, true)
+  const ctx = makeCtx()
+  let reviewed = 0
+  installGate({
+    ctx,
+    config: normalizeConfig({ defaultActive: false }),
+    coordinator: {
+      review: async () => {
+        reviewed += 1
+        return { isError: false, value: 'reviewed' }
+      },
+    } as unknown as ReviewCoordinator,
+    killSwitch: createKillSwitch(dir, 0),
+    activation,
+  })
+  let nextCalls = 0
+  const result = await ctx.fire(execFor('write', agent), async () => {
+    nextCalls += 1
+    return { isError: false, value: 'direct' }
+  })
+  assert.deepEqual(result, { isError: false, value: 'direct' })
+  assert.equal(nextCalls, 1)
+  assert.equal(reviewed, 0)
+})
+
 test('reviewed tool goes through the coordinator and never calls next', async () => {
   let nextCalls = 0
   const ctx = makeCtx()
@@ -86,8 +150,8 @@ test('reviewed tool goes through the coordinator and never calls next', async ()
     ctx,
     config: normalizeConfig({}),
     coordinator: coordinatorReturning(expected),
-    killSwitch: createKillSwitch('/nonexistent-state-dir', 0),
-    pause: createPauseRegistry(),
+    killSwitch: noKillSwitch(),
+    activation: createActivationRegistry(true),
   })
   const result = await ctx.fire(execFor('write'), async () => {
     nextCalls += 1
@@ -95,6 +159,69 @@ test('reviewed tool goes through the coordinator and never calls next', async ()
   })
   assert.deepEqual(result, expected)
   assert.equal(nextCalls, 0)
+})
+
+test('review inactive by default: the tool runs untouched and the registry is never consulted', async () => {
+  let toolsGetCalls = 0
+  const ctx = makeCtx(() => {
+    toolsGetCalls += 1
+    throw new Error('the inactive fast path must not look up tool definitions')
+  })
+  let reviewed = 0
+  installGate({
+    ctx,
+    config: normalizeConfig({ defaultActive: false }),
+    coordinator: {
+      review: async () => {
+        reviewed += 1
+        return { isError: false, value: 'reviewed' }
+      },
+    } as unknown as ReviewCoordinator,
+    killSwitch: noKillSwitch(),
+    activation: createActivationRegistry(false),
+  })
+  let nextCalls = 0
+  const result = await ctx.fire(execFor('write'), async () => {
+    nextCalls += 1
+    return { isError: false, value: 'direct' }
+  })
+  assert.deepEqual(result, { isError: false, value: 'direct' })
+  assert.equal(nextCalls, 1)
+  assert.equal(reviewed, 0)
+  assert.equal(toolsGetCalls, 0)
+})
+
+test('an explicitly inactive session bypasses review while another session is reviewed', async () => {
+  const activation = createActivationRegistry(true)
+  const inactiveAgent = sessionAgent('off')
+  const activeAgent = sessionAgent('on')
+  activation.set(inactiveAgent, false)
+  const ctx = makeCtx()
+  let reviewed = 0
+  installGate({
+    ctx,
+    config: normalizeConfig({}),
+    coordinator: {
+      review: async () => {
+        reviewed += 1
+        return { isError: false, value: 'reviewed' }
+      },
+    } as unknown as ReviewCoordinator,
+    killSwitch: noKillSwitch(),
+    activation,
+  })
+  let nextCalls = 0
+  const bypassed = await ctx.fire(execFor('write', inactiveAgent), async () => {
+    nextCalls += 1
+    return { isError: false, value: 'direct' }
+  })
+  assert.deepEqual(bypassed, { isError: false, value: 'direct' })
+  assert.equal(nextCalls, 1)
+  assert.equal(reviewed, 0)
+
+  const reviewedResult = await ctx.fire(execFor('write', activeAgent), passNext)
+  assert.deepEqual(reviewedResult, { isError: false, value: 'reviewed' })
+  assert.equal(reviewed, 1)
 })
 
 test('a coordinator bug fails closed for the reviewed call only', async () => {
@@ -107,8 +234,8 @@ test('a coordinator bug fails closed for the reviewed call only', async () => {
         throw new Error('boom')
       },
     } as unknown as ReviewCoordinator,
-    killSwitch: createKillSwitch('/nonexistent-state-dir', 0),
-    pause: createPauseRegistry(),
+    killSwitch: noKillSwitch(),
+    activation: createActivationRegistry(true),
   })
   const result = (await ctx.fire(execFor('write'), passNext)) as ToolExecutionResultView
   assert.equal(result.isError, true)
@@ -121,8 +248,8 @@ test('non-reviewed tools pass through untouched', async () => {
     ctx,
     config: normalizeConfig({}),
     coordinator: coordinatorReturning({ passthrough: true }),
-    killSwitch: createKillSwitch('/nonexistent-state-dir', 0),
-    pause: createPauseRegistry(),
+    killSwitch: noKillSwitch(),
+    activation: createActivationRegistry(true),
   })
   let nextCalls = 0
   await ctx.fire(execFor('bash'), async () => {
@@ -140,8 +267,8 @@ test('a broken tool registry cannot lock out non-review tools', async () => {
     ctx,
     config: normalizeConfig({}),
     coordinator: coordinatorReturning({ passthrough: true }),
-    killSwitch: createKillSwitch('/nonexistent-state-dir', 0),
-    pause: createPauseRegistry(),
+    killSwitch: noKillSwitch(),
+    activation: createActivationRegistry(true),
   })
   let bashCalls = 0
   await ctx.fire(execFor('bash'), async () => {
@@ -157,8 +284,8 @@ test('mutating-looking unknown tools are denied by default', async () => {
     ctx,
     config: normalizeConfig({}),
     coordinator: coordinatorReturning({ passthrough: true }),
-    killSwitch: createKillSwitch('/nonexistent-state-dir', 0),
-    pause: createPauseRegistry(),
+    killSwitch: noKillSwitch(),
+    activation: createActivationRegistry(true),
   })
   const result = (await ctx.fire(execFor('delete_file'), passNext)) as ToolExecutionResultView
   assert.equal(result.isError, true)

@@ -48,8 +48,7 @@ export function parseAuditLines(lines: readonly string[], limit: number): AuditH
 }
 
 /** Read the newest `limit` audit entries across monthly files (newest first). */
-export async function readAuditHistory(stateDir: string, limit: number): Promise<AuditHistoryEntry[]> {
-  const auditDir = join(stateDir, 'audit')
+export async function readAuditHistory(auditDir: string, limit: number): Promise<AuditHistoryEntry[]> {
   let files: string[]
   try {
     files = (await readdir(auditDir)).filter((name) => name.endsWith('.jsonl')).sort().reverse()

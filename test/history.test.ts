@@ -40,9 +40,10 @@ test('formatHistory renders newest first and states empty history explicitly', (
 
 test('readAuditHistory reads newest monthly files first and respects the limit', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dpr-history-'))
-  await mkdir(join(dir, 'audit'), { recursive: true })
+  const auditDir = join(dir, 'audit')
+  await mkdir(auditDir, { recursive: true })
   await writeFile(
-    join(dir, 'audit', '2026-10.jsonl'),
+    join(auditDir, '2026-10.jsonl'),
     `${JSON.stringify({ at: '2026-10-31T10:00:00.000Z', event: 'review/committed', displayPath: 'old.ts' })}\n`,
     'utf8',
   )
@@ -50,14 +51,14 @@ test('readAuditHistory reads newest monthly files first and respects the limit',
     { at: '2026-11-05T10:00:00.000Z', event: 'review/committed', displayPath: 'a.ts' },
     { at: '2026-11-05T10:01:00.000Z', event: 'review/rejected', displayPath: 'b.ts' },
   ]
-  await writeFile(join(dir, 'audit', '2026-11.jsonl'), `${entries.map((entry) => JSON.stringify(entry)).join('\n')}\n`, 'utf8')
+  await writeFile(join(auditDir, '2026-11.jsonl'), `${entries.map((entry) => JSON.stringify(entry)).join('\n')}\n`, 'utf8')
 
-  const newest = await readAuditHistory(dir, 2)
+  const newest = await readAuditHistory(auditDir, 2)
   assert.deepEqual(
     newest.map((entry) => entry.displayPath),
     ['b.ts', 'a.ts'],
   )
-  const more = await readAuditHistory(dir, 3)
+  const more = await readAuditHistory(auditDir, 3)
   assert.equal(more.length, 3)
   assert.equal(await readAuditHistory(join(dir, 'missing'), 5).then((value) => value.length), 0)
 })

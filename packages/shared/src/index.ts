@@ -1,4 +1,5 @@
 export * from './protocol.ts'
+export * from './host.ts'
 export * from './review-record.ts'
 export * from './commit-target.ts'
 export * from './text.ts'

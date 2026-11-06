@@ -3,8 +3,9 @@
  *
  * The session owns the editable `vscode.diff` for every pending request and
  * turns the user's Accept/Reject into a protocol `decision` request. It is
- * deliberately instantiable more than once so the in-process self-test can run
- * a session against a mock Host while the real one stays untouched.
+ * deliberately instantiable more than once so a multi-Host extension can keep
+ * one session per discovered Host (ADR 0002) and the in-process self-test can
+ * run sessions against mock Hosts while the real ones stay untouched.
  */
 
 import * as vscode from 'vscode'
@@ -29,6 +30,7 @@ import {
   requestIdOfPath,
   type DprFileSystemProvider,
 } from './fs-provider.ts'
+import { LEGACY_HOST_KEY } from './host-registry.ts'
 import { IpcClient, IpcRpcError, type IpcConnectionInfo } from './ipc-client.ts'
 import type { Messages } from './i18n.ts'
 import { delay, describeError } from './util.ts'
@@ -43,8 +45,15 @@ export interface DecisionCommandArg {
 export type ReviewCommandArg = string | DecisionCommandArg | undefined
 
 export interface ReviewSessionOptions {
+  /** The Host's own directory (state namespace); socket/token default to it. */
   stateDir: string
   socketPath?: string
+  /** Token file; defaults to `<stateDir>/token`. */
+  tokenPath?: string
+  /** Host key from discovery (ADR 0002); absent/`legacy` = old single-Host layout. */
+  hostKey?: string
+  /** Human-readable Host label from discovery; the hello result can refresh it. */
+  hostLabel?: string
   clientVersion: string
   messages: Messages
   provider: DprFileSystemProvider
@@ -63,6 +72,8 @@ export interface PendingReview {
   readonly params: ReviewRequestParams
   readonly proposalUri: vscode.Uri
   readonly originalUri: vscode.Uri
+  /** Diff-editor title captured when the review arrived (host label included). */
+  readonly diffTitle: string
   readonly openedAt: number
 }
 
@@ -79,6 +90,8 @@ export interface SettledReview {
   /** True when the accepted content differed from the agent's proposal. */
   edited: boolean
   at: number
+  /** Owning Host key (multi-Host, ADR 0002); absent for the legacy Host. */
+  hostKey?: string
 }
 
 interface PendingPickItem extends vscode.QuickPickItem {
@@ -91,7 +104,14 @@ interface AwaitingOutcome {
   timer: NodeJS.Timeout
 }
 
-type AutoAcceptDisarmReason = 'toggled' | 'expired' | 'disconnect' | 'shutdown' | 'rejectAll' | 'disposed'
+type AutoAcceptDisarmReason =
+  | 'toggled'
+  | 'expired'
+  | 'disconnect'
+  | 'shutdown'
+  | 'rejectAll'
+  | 'disposed'
+  | 'external'
 
 const AUTO_ACCEPT_WINDOW_MS = 5 * 60 * 1000
 const DOC_OPEN_TIMEOUT_MS = 6000
@@ -119,6 +139,7 @@ export class ReviewSession {
   private autoAcceptUntil: number | undefined
   private reviewPausedState = false
   private disposed = false
+  private declaredHostLabel: string | undefined
   /** One onboarding hint per VS Code session; decisions live on the title bar. */
   private firstHintShown = false
 
@@ -126,9 +147,13 @@ export class ReviewSession {
     this.options = options
     this.messages = options.messages
     this.provider = options.provider
+    this.declaredHostLabel = options.hostLabel
     this.client = new IpcClient({
       stateDir: options.stateDir,
       ...(options.socketPath !== undefined ? { socketPath: options.socketPath } : {}),
+      ...(options.tokenPath !== undefined ? { tokenPath: options.tokenPath } : {}),
+      ...(options.hostKey !== undefined ? { hostKey: options.hostKey } : {}),
+      ...(options.hostLabel !== undefined ? { hostLabel: options.hostLabel } : {}),
       clientVersion: options.clientVersion,
       onNotification: (notification): void => this.onNotification(notification),
       onConnectionChanged: (info): void => this.onConnectionChanged(info),
@@ -170,6 +195,39 @@ export class ReviewSession {
     return this.client.endpoint
   }
 
+  get tokenPath(): string {
+    return this.client.tokenPath
+  }
+
+  /** Owning Host key (`legacy` for old single-Host layouts). */
+  get hostKey(): string | undefined {
+    return this.client.hostKey ?? this.options.hostKey
+  }
+
+  get hostLabel(): string | undefined {
+    // `declaredHostLabel` starts as the discovery label and is refreshed by
+    // setHostLabel(); the client only adds a label when the Host announced one
+    // in hello. Prefer the declared one so a relabel is visible immediately.
+    return this.declaredHostLabel ?? this.client.hostLabel
+  }
+
+  /** True when this session talks to the pre-0.3.0 single-Host root layout. */
+  get isLegacy(): boolean {
+    const key = this.hostKey
+    return key === undefined || key === LEGACY_HOST_KEY
+  }
+
+  /** Label shown in multi-Host UI (the raw key when a Host has no label). */
+  get displayLabel(): string {
+    return this.hostLabel ?? this.hostKey ?? LEGACY_HOST_KEY
+  }
+
+  /** First-level `dpr:` path segment that scopes this Host's proposal URIs. */
+  private get uriHostKey(): string {
+    const key = this.hostKey
+    return key === undefined || key.length === 0 ? LEGACY_HOST_KEY : key
+  }
+
   get pendingCount(): number {
     return this.pending.size
   }
@@ -178,7 +236,7 @@ export class ReviewSession {
     return this.autoAcceptTimer !== undefined
   }
 
-  /** True when the Host reported that review is paused for some live session. */
+  /** True when the Host reported that review is inactive (paused) for its sessions. */
   get reviewPaused(): boolean {
     return this.reviewPausedState
   }
@@ -193,6 +251,25 @@ export class ReviewSession {
 
   pendingList(): readonly PendingReview[] {
     return [...this.pending.values()]
+  }
+
+  /** True when `uri` is the proposal/original side of a review this session owns. */
+  ownsUri(uri: vscode.Uri): boolean {
+    if (uri.scheme !== DPR_SCHEME) return false
+    const requestId = requestIdOfPath(uri.path)
+    if (requestId === undefined) return false
+    const review = this.pending.get(requestId)
+    if (review === undefined) return false
+    const target = uri.toString()
+    return review.proposalUri.toString() === target || review.originalUri.toString() === target
+  }
+
+  /** Refresh the display label from discovery without touching the connection. */
+  setHostLabel(label: string | undefined): void {
+    if (this.disposed) return
+    if (this.declaredHostLabel === label) return
+    this.declaredHostLabel = label
+    this.notifyStateChanged()
   }
 
   // -- commands -----------------------------------------------------------
@@ -364,13 +441,30 @@ export class ReviewSession {
       this.messages.autoAcceptConfirmYes,
     )
     if (confirmed !== this.messages.autoAcceptConfirmYes || this.disposed) return
+    this.armAutoAcceptWindow()
+    this.showInfo(this.messages.autoAcceptArmed(AUTO_ACCEPT_WINDOW_MS / 60_000))
+  }
+
+  /**
+   * Arm the 5-minute auto-accept window without any prompt. The extension uses
+   * this for the aggregated multi-Host `dpr.acceptAll` path, where one
+   * confirmation covers every target Host.
+   */
+  armAutoAcceptWindow(): void {
+    if (this.disposed || this.autoAcceptTimer !== undefined) return
     this.autoAcceptUntil = Date.now() + AUTO_ACCEPT_WINDOW_MS
     this.autoAcceptTimer = setTimeout(() => {
       this.disarmAutoAccept('expired')
     }, AUTO_ACCEPT_WINDOW_MS)
     this.log('auto-accept armed for 5 minutes')
-    this.showInfo(this.messages.autoAcceptArmed(AUTO_ACCEPT_WINDOW_MS / 60_000))
     this.notifyStateChanged()
+  }
+
+  /** Disarm silently (aggregated multi-Host path); returns true when armed. */
+  disarmAutoAcceptWindow(): boolean {
+    if (this.autoAcceptTimer === undefined) return false
+    this.disarmAutoAccept('external')
+    return true
   }
 
   // -- notifications ------------------------------------------------------
@@ -401,7 +495,7 @@ export class ReviewSession {
     const paused = reviewPaused(params)
     if (this.reviewPausedState === paused) return
     this.reviewPausedState = paused
-    this.log(`review ${paused ? 'paused' : 'resumed'} by the Host`)
+    this.log(`review ${paused ? 'inactive' : 'active'} by the Host`)
     this.notifyStateChanged()
   }
 
@@ -420,9 +514,10 @@ export class ReviewSession {
 
   private async openNewReview(params: ReviewRequestParams): Promise<void> {
     if (this.disposed || this.pending.has(params.requestId)) return
-    const proposalUri = proposalUriFor(params.requestId, params.displayPath)
+    const hostKey = this.uriHostKey
+    const proposalUri = proposalUriFor(params.requestId, params.displayPath, hostKey)
     const originalUri = params.isNewFile
-      ? emptyOriginalUriFor(params.requestId, params.displayPath)
+      ? emptyOriginalUriFor(params.requestId, params.displayPath, hostKey)
       : vscode.Uri.file(params.absolutePath)
 
     this.provider.seed(proposalUri.path, params.after)
@@ -432,6 +527,7 @@ export class ReviewSession {
       params,
       proposalUri,
       originalUri,
+      diffTitle: this.titleFor(params.displayPath),
       openedAt: Date.now(),
     }
     this.pending.set(params.requestId, review)
@@ -439,13 +535,9 @@ export class ReviewSession {
     this.log(`opening review diff for ${params.displayPath} (${params.requestId})`)
 
     try {
-      await vscode.commands.executeCommand(
-        'vscode.diff',
-        originalUri,
-        proposalUri,
-        this.messages.diffTitle(params.displayPath),
-        { preview: false },
-      )
+      await vscode.commands.executeCommand('vscode.diff', originalUri, proposalUri, review.diffTitle, {
+        preview: false,
+      })
     } catch (error) {
       this.log(`failed to open diff: ${describeError(error)}`)
       this.showWarning(this.messages.openDiffFailed(params.displayPath, describeError(error)))
@@ -501,7 +593,7 @@ export class ReviewSession {
       return
     }
     this.pending.delete(params.requestId)
-    this.provider.release(params.requestId)
+    this.releaseProvider(params.requestId)
     this.notifyStateChanged()
     this.recordSettled(review.params, 'cancelled', false)
     void this.closeDiffTab(review.proposalUri)
@@ -525,7 +617,7 @@ export class ReviewSession {
     const review = this.pending.get(params.requestId)
     if (review !== undefined) {
       this.pending.delete(params.requestId)
-      this.provider.release(params.requestId)
+      this.releaseProvider(params.requestId)
       this.notifyStateChanged()
       void this.closeDiffTab(review.proposalUri)
       this.recordSettled(review.params, params.state, false)
@@ -640,6 +732,7 @@ export class ReviewSession {
 
   private recordSettled(params: ReviewRequestParams, outcome: string, edited: boolean): void {
     if (!KNOWN_OUTCOMES.has(outcome)) return
+    const hostKey = this.isLegacy ? undefined : this.hostKey
     this.options.onSettled?.({
       requestId: params.requestId,
       displayPath: params.displayPath,
@@ -648,6 +741,7 @@ export class ReviewSession {
       outcome,
       edited,
       at: Date.now(),
+      ...(hostKey !== undefined ? { hostKey } : {}),
     })
   }
 
@@ -746,14 +840,18 @@ export class ReviewSession {
 
   private removePending(requestId: string): void {
     if (this.pending.delete(requestId)) this.notifyStateChanged()
-    this.provider.release(requestId)
+    this.releaseProvider(requestId)
+  }
+
+  private releaseProvider(requestId: string): void {
+    this.provider.release(requestId, this.uriHostKey)
   }
 
   private clearPending(): number {
     const count = this.pending.size
     if (count === 0) return 0
     for (const review of this.pending.values()) {
-      this.provider.release(review.params.requestId)
+      this.releaseProvider(review.params.requestId)
       void this.closeDiffTab(review.proposalUri)
     }
     this.pending.clear()
@@ -763,13 +861,18 @@ export class ReviewSession {
 
   // -- diff UI ------------------------------------------------------------
 
+  /** Diff title: includes the Host label only for non-legacy (multi-Host) Hosts. */
+  private titleFor(displayPath: string): string {
+    return this.messages.diffTitle(displayPath, this.isLegacy ? undefined : this.displayLabel)
+  }
+
   private async openDiff(review: PendingReview): Promise<void> {
     try {
       await vscode.commands.executeCommand(
         'vscode.diff',
         review.originalUri,
         review.proposalUri,
-        this.messages.diffTitle(review.params.displayPath),
+        review.diffTitle,
         { preview: false },
       )
     } catch (error) {

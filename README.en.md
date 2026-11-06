@@ -13,6 +13,14 @@ the content that lands is whatever the user finally approved (including their ow
 
 [中文说明](README.md) · [**Handover (start here if you maintain this)**](HANDOVER.md) · [Install](docs/install.md) · [Usage](docs/usage.md) · [Security model](docs/security.md) · [Troubleshooting](docs/troubleshooting.md)
 
+> **0.3.0: installing the plugin no longer enables review.** Review is inactive until the user runs
+> `/review on` in a session; only then are that session's writes intercepted. See
+> [docs/usage.md](docs/usage.md).
+>
+> **Multiple Hosts coexist**: the Desktop profile and the TUI profile can both install the plugin and
+> connect to the same VS Code at once. Each Host owns its own
+> `~/.dsh/pre-edit-review/hosts/<hostKey>/{ipc.sock,token,staging,audit}` (ADR 0002).
+
 ## Why
 
 Agentic coding tools write first and diff later. This project flips that around:
@@ -29,9 +37,9 @@ Agentic coding tools write first and diff later. This project flips that around:
 
 | Part | What it does |
 |---|---|
-| **DSH Host plugin** `dsh-pre-edit-review` | Intercepts `write` / `edit` / `str_replace_editor`, builds the full proposed content, stages it under `~/.dsh/pre-edit-review`, talks to VS Code over a Unix socket, and commits with a CAS precondition. |
+| **DSH Host plugin** `dsh-pre-edit-review` | Intercepts `write` / `edit` / `str_replace_editor`, builds the full proposed content, stages it under `~/.dsh/pre-edit-review/hosts/<hostKey>/`, talks to VS Code over a per-Host Unix socket, and commits with a CAS precondition. |
 | **VS Code extension** `The4leepy.deepseek-pre-edit-review` | Opens one editable `vscode.diff` per request, adds Accept/Reject buttons in the editor title, pending/history views, notifications and status bar. |
-| **Safety rails** | Kill switch (`DISABLED`), crash reconciliation, nonce-bound IPC, session-scoped review pause (`/review off`). |
+| **Safety rails** | Kill switch (`DISABLED`, global across Hosts), crash reconciliation, nonce-bound IPC, per-session review activation (`/review on` / `/review off`, inactive by default), per-Host state namespaces. |
 
 ## Install
 
@@ -49,6 +57,7 @@ scripts/install-plugin.sh              # arms the kill switch, then installs the
 scripts/doctor.sh                      # health check
 # once everything is OK:
 rm ~/.dsh/pre-edit-review/DISABLED
+# then, in the session you want reviewed: /review on   (review is OFF by default in 0.3.0)
 ```
 
 The packaged Desktop build has no `dsh` CLI on `PATH`; `install-plugin.sh` then prints the exact
@@ -58,25 +67,30 @@ Web GUI / `plugin_manager install_bundle` step. See [docs/install.md](docs/insta
 
 ```text
 Agent writes a file  →  VS Code shows Original | Proposed (Proposed is editable)
-Accept (title bar ✓ / Ctrl+Alt+A)  →  your final content is committed
-Reject (title bar ✗ / Ctrl+Alt+R)  →  file unchanged, agent told why
+Accept (title bar ✓ / ⌘+Shift+A on macOS, Ctrl+Alt+A elsewhere)  →  your final content is committed
+Reject (title bar ✗ / ⌘+Shift+Backspace on macOS, Ctrl+Alt+R elsewhere)  →  file unchanged, agent told why
 ```
 
-Commands: `/review status`, `/review on|off` (pause/resume this session),
+Commands: `/review status`, `/review on` (enable review for this session), `/review off` (disable it),
 `/review strict|balanced` (file policy), `/review history [n]`.
 
 ## Security
 
 Read [docs/security.md](docs/security.md) before relying on this. The short version:
 
-- **Tool-level mode (default)** reviews tool writes only; `bash`/scripts can bypass it. This mode
-  does **not** claim a security guarantee.
+- **Review is inactive after install.** It is not a protection until the user runs `/review on` for a
+  session; the plugin never pretends otherwise (status bar `· OFF`, `/review status`, startup log).
+- **Tool-level mode (once activated)** reviews tool writes only; `bash`/scripts can bypass it. This
+  mode does **not** claim a security guarantee.
 - **Strict mode** (`/review strict`, session `read-only`) blocks every write through the OS sandbox;
-  the only write path is the approved commit.
-- **Review pause** (`/review off`) is user-only, session-scoped and in-memory; it skips review but
-  does not change the sandbox.
-- The kill switch `~/.dsh/pre-edit-review/DISABLED` makes the plugin inert within a second and is the
-  recovery path if a plugin bug ever blocks tool calls.
+  the only write path is the approved commit. Strict mode without activation simply denies writes.
+- **Activation** (`/review on` / `/review off`) is user-only, session-scoped and in-memory; it decides
+  whether review runs, never the sandbox. Subagent/teammate sessions are separate (known limitation).
+- The kill switch `~/.dsh/pre-edit-review/DISABLED` makes **every Host** inert within a second and is
+  the recovery path if a plugin bug ever blocks tool calls.
+- **Multi-Host isolation**: each Host owns `hosts/<hostKey>/{ipc.sock,token,staging,audit}`; one
+  Host's token cannot authenticate to another and the discovery `meta.json` never contains the token.
+  Two instances of the *same* profile cannot coexist (`HOST_IN_USE`).
 - The plugin runs inside the DSH Host process and is trusted code: install it only from a source you
   trust.
 

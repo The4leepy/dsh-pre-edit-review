@@ -6,36 +6,58 @@
  * S2 spike). Nothing here ever touches the user's working tree: `writeFile` is
  * called by VS Code when the user saves the proposal document, and the final
  * bytes are only kept in memory so that Accept can read `document.getText()`.
+ *
+ * URI layout (multi-Host, ADR 0002):
+ *
+ *   / <hostKey> / <requestId> / <basename>            editable proposal
+ *   / <hostKey> / <requestId> / original / <basename> empty left side (new file)
+ *
+ * The host key segment makes the URIs globally unique across Hosts; the legacy
+ * single-Host layout uses the fixed key `legacy`. Only `review-session.ts`
+ * parses these paths (`requestIdOfPath`); everything else seeds by path.
  */
 
 import * as vscode from 'vscode'
 
+import { LEGACY_HOST_KEY } from './host-registry.ts'
 import { basenameOf } from './util.ts'
 
 export const DPR_SCHEME = 'dpr'
 
-/** `/ <requestId> / <basename>` — the editable proposal document. */
-export function proposalPath(requestId: string, displayPath: string): string {
-  return `/${sanitizeSegment(requestId)}/${basenameOf(displayPath)}`
+/** `/ <hostKey> / <requestId> / <basename>` — the editable proposal document. */
+export function proposalPath(requestId: string, displayPath: string, hostKey: string = LEGACY_HOST_KEY): string {
+  return `/${sanitizeSegment(hostKey)}/${sanitizeSegment(requestId)}/${basenameOf(displayPath)}`
 }
 
-/** `/ <requestId> / original / <basename>` — an empty left side for new files. */
-export function emptyOriginalPath(requestId: string, displayPath: string): string {
-  return `/${sanitizeSegment(requestId)}/original/${basenameOf(displayPath)}`
+/** `/ <hostKey> / <requestId> / original / <basename>` — an empty left side for new files. */
+export function emptyOriginalPath(
+  requestId: string,
+  displayPath: string,
+  hostKey: string = LEGACY_HOST_KEY,
+): string {
+  return `/${sanitizeSegment(hostKey)}/${sanitizeSegment(requestId)}/original/${basenameOf(displayPath)}`
 }
 
-export function proposalUriFor(requestId: string, displayPath: string): vscode.Uri {
-  return vscode.Uri.from({ scheme: DPR_SCHEME, path: proposalPath(requestId, displayPath) })
+export function proposalUriFor(
+  requestId: string,
+  displayPath: string,
+  hostKey: string = LEGACY_HOST_KEY,
+): vscode.Uri {
+  return vscode.Uri.from({ scheme: DPR_SCHEME, path: proposalPath(requestId, displayPath, hostKey) })
 }
 
-export function emptyOriginalUriFor(requestId: string, displayPath: string): vscode.Uri {
-  return vscode.Uri.from({ scheme: DPR_SCHEME, path: emptyOriginalPath(requestId, displayPath) })
+export function emptyOriginalUriFor(
+  requestId: string,
+  displayPath: string,
+  hostKey: string = LEGACY_HOST_KEY,
+): vscode.Uri {
+  return vscode.Uri.from({ scheme: DPR_SCHEME, path: emptyOriginalPath(requestId, displayPath, hostKey) })
 }
 
-/** First path segment of a `dpr:` URI, i.e. the owning request id. */
+/** Request id of a `dpr:` URI (second path segment, after the host key). */
 export function requestIdOfPath(path: string): string | undefined {
   const segments = path.split('/').filter((segment) => segment.length > 0)
-  return segments.length >= 2 ? segments[0] : undefined
+  return segments.length >= 2 ? segments[1] : undefined
 }
 
 function sanitizeSegment(value: string): string {
@@ -64,8 +86,8 @@ export class DprFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   /** Last `writeFile` content for a request, used by the in-process self-test. */
-  lastWriteFor(requestId: string): DprWriteRecord | undefined {
-    const prefix = `/${sanitizeSegment(requestId)}/`
+  lastWriteFor(requestId: string, hostKey: string = LEGACY_HOST_KEY): DprWriteRecord | undefined {
+    const prefix = `/${sanitizeSegment(hostKey)}/${sanitizeSegment(requestId)}/`
     for (let index = this.writeHistory.length - 1; index >= 0; index -= 1) {
       const record = this.writeHistory[index]
       if (record !== undefined && record.path.startsWith(prefix)) return record
@@ -83,9 +105,9 @@ export class DprFileSystemProvider implements vscode.FileSystemProvider {
     return this.files.get(this.key(uri))
   }
 
-  /** Drop every in-memory document owned by one request (`/id/...`). */
-  release(requestId: string): void {
-    const prefix = `/${sanitizeSegment(requestId)}/`
+  /** Drop every in-memory document owned by one request (`/<hostKey>/<requestId>/...`). */
+  release(requestId: string, hostKey: string = LEGACY_HOST_KEY): void {
+    const prefix = `/${sanitizeSegment(hostKey)}/${sanitizeSegment(requestId)}/`
     for (const path of Array.from(this.files.keys())) {
       if (path.startsWith(prefix)) {
         this.files.delete(path)

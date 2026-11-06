@@ -1,4 +1,49 @@
-// src/config.ts
+// packages/dsh-plugin/src/activation.ts
+function identityOf(value) {
+  if (typeof value === "string") return value.length > 0 ? value : void 0;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return void 0;
+}
+function sessionKeyOf(agent) {
+  return identityOf(agent?.session?.id) ?? identityOf(agent?.id);
+}
+function createActivationRegistry(defaultActive) {
+  const choices = /* @__PURE__ */ new Map();
+  return {
+    defaultActive,
+    isActive(agent) {
+      const key = sessionKeyOf(agent);
+      if (key === void 0) return defaultActive;
+      return choices.get(key) ?? defaultActive;
+    },
+    set(agent, active) {
+      const key = sessionKeyOf(agent);
+      if (key === void 0) return false;
+      choices.set(key, active);
+      return true;
+    },
+    forget(agent) {
+      const key = sessionKeyOf(agent);
+      if (key === void 0) return false;
+      return choices.delete(key);
+    },
+    anyInactive() {
+      return defaultActive ? this.inactiveCount() > 0 : this.activeCount() === 0;
+    },
+    activeCount() {
+      let count = 0;
+      for (const active of choices.values()) if (active) count += 1;
+      return count;
+    },
+    inactiveCount() {
+      let count = 0;
+      for (const active of choices.values()) if (!active) count += 1;
+      return count;
+    }
+  };
+}
+
+// packages/dsh-plugin/src/config.ts
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 var DEFAULT_REVIEW_TOOLS = ["write", "edit", "str_replace_editor"];
@@ -21,6 +66,21 @@ function positiveInt(value, name2, fallback, min = 1) {
   }
   return value;
 }
+function booleanValue(value, name2, fallback) {
+  if (value === void 0) return fallback;
+  if (typeof value !== "boolean") fail(`${name2} must be a boolean`);
+  return value;
+}
+function optionalString(value, name2) {
+  if (value === void 0 || value === null) return void 0;
+  if (typeof value !== "string") fail(`${name2} must be a string`);
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? void 0 : trimmed;
+}
+function optionalPath(value, name2) {
+  const raw = optionalString(value, name2);
+  return raw === void 0 ? void 0 : expandHome(raw);
+}
 function stringArray(value, name2, fallback) {
   if (value === void 0) return fallback;
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.length === 0)) {
@@ -38,10 +98,17 @@ function normalizeConfig(raw) {
   const fallback = input.fallback ?? "deny";
   if (fallback !== "deny" && fallback !== "dsh-approval") fail('fallback must be "deny" or "dsh-approval"');
   const stateDir = expandHome(input.stateDir ?? DEFAULT_STATE_DIR);
-  const socketPath = input.socketPath !== void 0 ? expandHome(input.socketPath) : resolve(stateDir, "ipc.sock");
+  const socketPath = optionalPath(input.socketPath, "socketPath");
   return {
     enabled: input.enabled ?? true,
     mode,
+    // ADR 0002 §1: inactive is the product default. The shipped bundle also
+    // spells it out, but the schema fallback must agree so a profile-level
+    // config row that replaces `config` wholesale cannot silently turn review
+    // back on (that used to fail-close every write after an upgrade).
+    defaultActive: booleanValue(input.defaultActive, "defaultActive", false),
+    hostKey: optionalString(input.hostKey, "hostKey"),
+    hostLabel: optionalString(input.hostLabel, "hostLabel"),
     reviewTools: stringArray(input.reviewTools, "reviewTools", DEFAULT_REVIEW_TOOLS),
     exemptTools: stringArray(input.exemptTools, "exemptTools", []),
     unknownToolPolicy,
@@ -54,7 +121,7 @@ function normalizeConfig(raw) {
     enableAutoAccept: input.enableAutoAccept ?? true,
     autoAcceptMax: positiveInt(input.autoAcceptMax, "autoAcceptMax", 20, 1),
     stateDir,
-    socketPath,
+    ...socketPath !== void 0 ? { socketPath } : {},
     clientConnectTimeoutMs: positiveInt(input.clientConnectTimeoutMs, "clientConnectTimeoutMs", 3e3, 100),
     noticeOnUserEdit: input.noticeOnUserEdit ?? true,
     allowPause: input.allowPause ?? input.allowBypass ?? true,
@@ -62,7 +129,7 @@ function normalizeConfig(raw) {
   };
 }
 
-// src/classifier.ts
+// packages/dsh-plugin/src/classifier.ts
 function presentsDiff(definition, args) {
   if (definition?.presentCall === void 0) return false;
   try {
@@ -100,11 +167,11 @@ function classify(input) {
   return { action: "pass" };
 }
 
-// src/review-coordinator.ts
+// packages/dsh-plugin/src/review-coordinator.ts
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 
-// ../shared/src/protocol.ts
+// packages/shared/src/protocol.ts
 var PROTOCOL_VERSION = 1;
 var METHODS = {
   hello: "hello",
@@ -173,7 +240,28 @@ function isAckParams(value) {
   return isDict(value) && isStr(value.requestId);
 }
 
-// ../shared/src/review-record.ts
+// packages/shared/src/host.ts
+var HOSTS_DIR_NAME = "hosts";
+var HOST_KEY_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+function isHostKey(value) {
+  return typeof value === "string" && HOST_KEY_PATTERN.test(value) && value !== "." && value !== "..";
+}
+function sanitizeHostKey(raw) {
+  if (typeof raw !== "string") return "default";
+  const cleaned = raw.trim().replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[._-]+/, "").slice(0, 64);
+  if (cleaned.length === 0) return "default";
+  return cleaned;
+}
+function isAbsolutePath(value) {
+  return typeof value === "string" && value.length > 0 && value.startsWith("/");
+}
+function isHostDescriptor(value) {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value;
+  return isHostKey(record["key"]) && typeof record["label"] === "string" && record["label"].length > 0 && typeof record["pid"] === "number" && Number.isInteger(record["pid"]) && record["pid"] > 0 && typeof record["pluginVersion"] === "string" && (record["instanceId"] === void 0 || typeof record["instanceId"] === "string") && typeof record["startedAt"] === "number" && Number.isFinite(record["startedAt"]) && isAbsolutePath(record["stateDir"]) && isAbsolutePath(record["socketPath"]) && isAbsolutePath(record["tokenPath"]);
+}
+
+// packages/shared/src/review-record.ts
 var TRANSITIONS = {
   pending: ["decided", "rejected", "expired", "cancelled", "failed"],
   decided: ["committed", "conflict", "failed"],
@@ -188,7 +276,7 @@ function canTransition(from, to) {
   return TRANSITIONS[from].includes(to);
 }
 
-// ../shared/src/commit-target.ts
+// packages/shared/src/commit-target.ts
 var CommitConflict = class extends Error {
   code;
   constructor(code, message) {
@@ -198,7 +286,7 @@ var CommitConflict = class extends Error {
   }
 };
 
-// ../shared/src/text.ts
+// packages/shared/src/text.ts
 function normalizeLineEndings(content) {
   return content.replaceAll("\r\n", "\n");
 }
@@ -233,7 +321,7 @@ function applyLiteralEdit(content, oldString, newString, replaceAll) {
   return { ok: true, content: content.split(oldNorm).join(newNorm), replacements };
 }
 
-// ../shared/src/hash.ts
+// packages/shared/src/hash.ts
 import { createHash, randomBytes } from "node:crypto";
 function sha256Hex(value) {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -242,7 +330,7 @@ function randomHex(bytes = 32) {
   return randomBytes(bytes).toString("hex");
 }
 
-// src/proposal.ts
+// packages/dsh-plugin/src/proposal.ts
 import { isAbsolute as isAbsolute2 } from "node:path";
 function isString(value) {
   return typeof value === "string";
@@ -362,7 +450,7 @@ function buildEditorProposal(args, snapshot, maxFileBytes) {
   return passthrough(`unknown str_replace_editor command: ${String(command)}`);
 }
 
-// src/review-coordinator.ts
+// packages/dsh-plugin/src/review-coordinator.ts
 function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -419,8 +507,6 @@ var ReviewCoordinator = class {
     return {
       connected: this.deps.ipc.connected,
       pending: this.contexts.size,
-      stateDir: this.deps.config.stateDir,
-      socketPath: this.deps.config.socketPath,
       mode: this.deps.config.mode
     };
   }
@@ -761,7 +847,7 @@ function languageHintFor(path) {
   return map[ext];
 }
 
-// src/gate.ts
+// packages/dsh-plugin/src/gate.ts
 function isPassthrough(result) {
   return "passthrough" in result;
 }
@@ -773,12 +859,12 @@ function lookupDefinition(ctx, name2) {
   }
 }
 function installGate(deps) {
-  const { ctx, config, coordinator, killSwitch, pause } = deps;
+  const { ctx, config, coordinator, killSwitch, activation } = deps;
   return ctx.on(
     "tools/execute",
     async (exec, next) => {
       if (killSwitch.active()) return next();
-      if (pause.isPaused(exec.agent?.session)) return next();
+      if (!activation.isActive(exec.agent)) return next();
       let classification;
       try {
         classification = classify({
@@ -810,7 +896,7 @@ function installGate(deps) {
   );
 }
 
-// src/kill-switch.ts
+// packages/dsh-plugin/src/kill-switch.ts
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 function createKillSwitch(stateDir, cacheMs = 1e3, now = () => Date.now()) {
@@ -834,32 +920,30 @@ function createKillSwitch(stateDir, cacheMs = 1e3, now = () => Date.now()) {
   };
 }
 
-// src/pause.ts
-function createPauseRegistry() {
-  const sessions = /* @__PURE__ */ new Set();
-  return {
-    isPaused(session) {
-      return session !== void 0 && sessions.has(session);
-    },
-    set(session, paused) {
-      if (paused) sessions.add(session);
-      else sessions.delete(session);
-    },
-    anyPaused() {
-      return sessions.size > 0;
-    },
-    activeCount() {
-      return sessions.size;
-    }
-  };
-}
-
-// src/ipc/server.ts
+// packages/dsh-plugin/src/ipc/server.ts
 import { createHash as createHash2, randomBytes as randomBytes2, timingSafeEqual } from "node:crypto";
-import { chmod, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import { connect as netConnect, createServer } from "node:net";
-import { join as join2 } from "node:path";
+import { dirname, join as join2 } from "node:path";
+var HostInUseError = class extends Error {
+  code = "HOST_IN_USE";
+  socketPath;
+  hostKey;
+  constructor(socketPath, hostKey, detail) {
+    const where = hostKey === void 0 ? socketPath : `${socketPath} (host "${hostKey}")`;
+    super(
+      `another pre-edit review host is already listening on ${where}; only one Host per profile is supported \u2014 stop the other instance, or configure a different stateDir/socketPath` + (detail === void 0 ? "" : ` (${detail})`)
+    );
+    this.name = "HostInUseError";
+    this.socketPath = socketPath;
+    this.hostKey = hostKey;
+  }
+};
 var MAX_FRAME_BYTES = 8 * 1024 * 1024;
+var MAX_RECLAIMS = 2;
+function probeSocketPath(path, timeoutMs = 300) {
+  return probeSocket(path, timeoutMs);
+}
 function probeSocket(path, timeoutMs = 300) {
   return new Promise((resolve2) => {
     const socket = netConnect(path);
@@ -878,6 +962,34 @@ function probeSocket(path, timeoutMs = 300) {
     });
   });
 }
+var PROCESS_OWNERS = Symbol.for("dsh-pre-edit-review.ipc-socket-owners");
+function ownerSlots() {
+  const global = globalThis;
+  let slots = global[PROCESS_OWNERS];
+  if (slots === void 0) {
+    slots = /* @__PURE__ */ new Map();
+    global[PROCESS_OWNERS] = slots;
+  }
+  return slots;
+}
+var OWNER_WAIT_MS = 1e4;
+function claimSocketOwner(socketPath) {
+  let release = () => void 0;
+  const released = new Promise((resolve2) => {
+    release = resolve2;
+  });
+  const slot = { released, release, closing: false };
+  ownerSlots().set(socketPath, slot);
+  return slot;
+}
+async function waitForPreviousOwner(socketPath) {
+  const previous = ownerSlots().get(socketPath);
+  if (previous === void 0 || !previous.closing) return;
+  await Promise.race([
+    previous.released,
+    new Promise((resolve2) => setTimeout(resolve2, OWNER_WAIT_MS).unref?.())
+  ]);
+}
 function tokenDigest(text) {
   return createHash2("sha256").update(text, "utf8").digest();
 }
@@ -887,6 +999,17 @@ var IpcServer = class {
   socket;
   buffer = "";
   authed = false;
+  /** True only when this instance successfully bound the socket path. */
+  boundToPath = false;
+  /**
+   * Device/inode of the socket file this instance bound. `stop()` only unlinks
+   * the path when it still resolves to that inode: a newer instance may have
+   * reclaimed the path between our `server.close()` and the unlink (HMR or a
+   * fast restart), and deleting its socket would make it undiscoverable.
+   */
+  boundIdentity;
+  /** Process-wide owner slot held from start until the close finished. */
+  owner;
   pending = /* @__PURE__ */ new Map();
   now;
   token = "";
@@ -903,41 +1026,125 @@ var IpcServer = class {
   get socketPath() {
     return this.options.socketPath;
   }
-  /** Create the state directory, publish a fresh token, and listen. */
+  get tokenPath() {
+    return this.options.tokenPath ?? join2(this.options.stateDir, "token");
+  }
+  /** True only while this instance owns the socket path it bound. */
+  get bound() {
+    return this.boundToPath;
+  }
+  /**
+   * Create the state directory, bind the socket, then publish a fresh token.
+   * Order matters: a losing Host must never overwrite the winner's token.
+   */
   async start() {
     await mkdir(this.options.stateDir, { recursive: true, mode: 448 });
+    await mkdir(dirname(this.tokenPath), { recursive: true, mode: 448 });
+    await waitForPreviousOwner(this.options.socketPath);
     this.token = randomBytes2(32).toString("hex");
-    const tokenPath = join2(this.options.stateDir, "token");
-    await writeFile(tokenPath, this.token, { encoding: "utf8", mode: 384 });
-    await chmod(tokenPath, 384).catch(() => void 0);
-    await this.listen();
-  }
-  async listen() {
-    const connect = () => new Promise((resolve2, reject) => {
-      const server = createServer((socket) => this.accept(socket));
-      server.once("error", reject);
-      server.listen(this.options.socketPath, () => {
-        server.removeListener("error", reject);
-        server.on("error", () => void 0);
-        resolve2();
-      });
-      this.server = server;
-    });
     try {
-      await connect();
+      await this.listen();
+      this.owner = claimSocketOwner(this.options.socketPath);
+      await this.publishToken();
     } catch (error) {
-      if (error.code !== "EADDRINUSE") throw error;
-      if (await probeSocket(this.options.socketPath)) {
-        throw new Error(
-          `another pre-edit review host is already listening on ${this.options.socketPath}; share one profile or configure a different stateDir/socketPath`
-        );
-      }
-      await unlink(this.options.socketPath).catch(() => void 0);
-      await connect();
+      if (this.boundToPath) await this.stop().catch(() => void 0);
+      this.releaseOwner();
+      throw error;
     }
-    await chmod(this.options.socketPath, 384).catch(() => void 0);
+  }
+  /** Release the process-wide owner slot exactly once. */
+  releaseOwner() {
+    const slot = this.owner;
+    if (slot === void 0) return;
+    this.owner = void 0;
+    if (ownerSlots().get(this.options.socketPath) === slot) ownerSlots().delete(this.options.socketPath);
+    slot.release();
+  }
+  /**
+   * Bind the socket. On `EADDRINUSE` probe first: a live listener is never
+   * displaced (typed `HostInUseError`); a stale socket is reclaimed after a
+   * probe, and the probe is repeated before any second unlink attempt.
+   */
+  async listen() {
+    let reclaims = 0;
+    for (; ; ) {
+      try {
+        await this.bind();
+        this.boundToPath = true;
+        this.boundIdentity = await this.socketIdentity();
+        await chmod(this.options.socketPath, 384).catch(() => void 0);
+        return;
+      } catch (error) {
+        if (error.code !== "EADDRINUSE") throw error;
+        if (await probeSocket(this.options.socketPath)) {
+          throw new HostInUseError(this.options.socketPath, this.options.hostKey);
+        }
+        if (reclaims >= MAX_RECLAIMS) {
+          throw new HostInUseError(this.options.socketPath, this.options.hostKey, "socket path could not be reclaimed");
+        }
+        await unlink(this.options.socketPath).catch(() => void 0);
+        reclaims += 1;
+      }
+    }
+  }
+  bind() {
+    return new Promise((resolve2, reject) => {
+      const server = createServer((socket) => this.accept(socket));
+      const onError = (error) => {
+        server.removeListener("listening", onListening);
+        server.close(() => void 0);
+        reject(error);
+      };
+      const onListening = () => {
+        server.removeListener("error", onError);
+        server.on("error", () => void 0);
+        this.server = server;
+        resolve2();
+      };
+      server.once("error", onError);
+      server.once("listening", onListening);
+      server.listen(this.options.socketPath);
+    });
+  }
+  /** Current socket file identity, `undefined` when the path cannot be stat'ed. */
+  async socketIdentity() {
+    try {
+      const info = await stat(this.options.socketPath);
+      return info.dev === void 0 || info.ino === void 0 ? void 0 : { dev: info.dev, ino: info.ino };
+    } catch {
+      return void 0;
+    }
+  }
+  /** True when the path still points at the socket this instance bound. */
+  async stillOwnsSocket() {
+    const expected = this.boundIdentity;
+    if (expected === void 0) {
+      return false;
+    }
+    const current = await this.socketIdentity();
+    return current !== void 0 && current.dev === expected.dev && current.ino === expected.ino;
+  }
+  /** Write the token atomically so a client never reads a partial file. */
+  async publishToken() {
+    const tokenPath = this.tokenPath;
+    const temp = `${tokenPath}.${randomHex(6)}.tmp`;
+    try {
+      const handle = await open(temp, "w", 384);
+      try {
+        await handle.writeFile(this.token, "utf8");
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      await rename(temp, tokenPath);
+    } catch (error) {
+      await unlink(temp).catch(() => void 0);
+      throw error;
+    }
+    await chmod(tokenPath, 384).catch(() => void 0);
   }
   async stop() {
+    if (this.owner !== void 0) this.owner.closing = true;
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);
       pending.signal.removeEventListener("abort", pending.onAbort);
@@ -946,16 +1153,24 @@ var IpcServer = class {
     this.pending.clear();
     this.socket?.destroy();
     this.socket = void 0;
-    await new Promise((resolve2) => {
-      if (this.server === void 0) return resolve2();
-      this.server.close(() => resolve2());
-    });
+    this.authed = false;
+    this.buffer = "";
+    const server = this.server;
     this.server = void 0;
-    await unlink(this.options.socketPath).catch(() => void 0);
+    await new Promise((resolve2) => {
+      if (server === void 0) return resolve2();
+      server.close(() => resolve2());
+    });
+    if (this.boundToPath) {
+      this.boundToPath = false;
+      if (await this.stillOwnsSocket()) await unlink(this.options.socketPath).catch(() => void 0);
+      this.boundIdentity = void 0;
+    }
+    this.releaseOwner();
   }
   /** Read the token the extension must present (also used by tooling/tests). */
   async readToken() {
-    return readFile(join2(this.options.stateDir, "token"), "utf8");
+    return readFile(this.tokenPath, "utf8");
   }
   /** Wait until a client completes the handshake, or the deadline passes. */
   async waitForClient(timeoutMs, signal) {
@@ -967,6 +1182,13 @@ var IpcServer = class {
       await new Promise((resolve2) => setTimeout(resolve2, 100));
     }
     return this.connected;
+  }
+  /** Host identity fields, included only when configured (additive protocol). */
+  identity() {
+    return {
+      ...this.options.hostKey !== void 0 ? { hostKey: this.options.hostKey } : {},
+      ...this.options.hostLabel !== void 0 ? { hostLabel: this.options.hostLabel } : {}
+    };
   }
   accept(socket) {
     if (this.socket !== void 0) {
@@ -1040,7 +1262,8 @@ var IpcServer = class {
         ok: true,
         serverVersion: this.options.serverVersion,
         stateDir: this.options.stateDir,
-        paused: this.options.mode?.() === true
+        paused: this.options.mode?.() === true,
+        ...this.identity()
       });
       return;
     }
@@ -1133,10 +1356,10 @@ var IpcServer = class {
         onAbort
       });
       options.signal.addEventListener("abort", onAbort, { once: true });
-      this.send({ jsonrpc: "2.0", method: METHODS.reviewRequest, params });
+      this.send({ jsonrpc: "2.0", method: METHODS.reviewRequest, params: { ...params, ...this.identity() } });
     });
   }
-  /** Push the current review-paused state to the client. */
+  /** Push the current review-activation state to the client. */
   notifyMode(params) {
     if (!this.connected) return;
     this.send({ jsonrpc: "2.0", method: METHODS.reviewMode, params });
@@ -1152,7 +1375,73 @@ var IpcServer = class {
   }
 };
 
-// src/recovery.ts
+// packages/dsh-plugin/src/paths.ts
+import { join as join3 } from "node:path";
+function nonEmptyString(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? void 0 : trimmed;
+}
+function resolveHostKey(config, ctx) {
+  const configured = nonEmptyString(config.hostKey);
+  if (configured !== void 0) return sanitizeHostKey(configured);
+  let profileName;
+  try {
+    const profile = ctx?.get("profileContext");
+    profileName = typeof profile === "string" ? profile : profile?.name;
+  } catch {
+    profileName = void 0;
+  }
+  const fromProfile = nonEmptyString(profileName);
+  if (fromProfile !== void 0) return sanitizeHostKey(fromProfile);
+  const fromEnv = nonEmptyString(process.env["DSH_PROFILE"]);
+  if (fromEnv !== void 0) return sanitizeHostKey(fromEnv);
+  return "default";
+}
+function resolveHostPaths(config, ctx) {
+  const root = config.stateDir;
+  const hostKey = resolveHostKey(config, ctx);
+  const hostLabel = nonEmptyString(config.hostLabel) ?? hostKey;
+  const hostDir = join3(root, HOSTS_DIR_NAME, hostKey);
+  return {
+    root,
+    hostKey,
+    hostLabel,
+    hostDir,
+    socketPath: config.socketPath ?? join3(hostDir, "ipc.sock"),
+    tokenPath: join3(hostDir, "token"),
+    stagingDir: join3(hostDir, "staging"),
+    auditDir: join3(hostDir, "audit"),
+    metaPath: join3(hostDir, "meta.json"),
+    killSwitchPath: join3(root, "DISABLED")
+  };
+}
+
+// packages/dsh-plugin/src/legacy.ts
+import { stat as stat2, unlink as unlink2 } from "node:fs/promises";
+import { join as join4 } from "node:path";
+var NOTHING = { socketRemoved: false, tokenRemoved: false };
+async function cleanupLegacyRoot(root) {
+  const socketPath = join4(root, "ipc.sock");
+  try {
+    await stat2(socketPath);
+  } catch {
+    return NOTHING;
+  }
+  if (await probeSocketPath(socketPath)) return NOTHING;
+  const socketRemoved = await unlink2(socketPath).then(
+    () => true,
+    () => false
+  );
+  if (!socketRemoved) return NOTHING;
+  const tokenRemoved = await unlink2(join4(root, "token")).then(
+    () => true,
+    () => false
+  );
+  return { socketRemoved, tokenRemoved };
+}
+
+// packages/dsh-plugin/src/recovery.ts
 function snapshotFor(record) {
   return {
     displayPath: record.displayPath,
@@ -1215,9 +1504,65 @@ async function reconcileStaging(store, target, host, signal) {
   return counts;
 }
 
-// src/staging/store.ts
-import { chmod as chmod2, mkdir as mkdir2, open, readFile as readFile2, readdir, rename, unlink as unlink2 } from "node:fs/promises";
-import { join as join3 } from "node:path";
+// packages/dsh-plugin/src/registry.ts
+import { chmod as chmod2, mkdir as mkdir2, open as open2, readFile as readFile2, rename as rename2, unlink as unlink3 } from "node:fs/promises";
+import { dirname as dirname2 } from "node:path";
+async function writeAtomically(path, contents) {
+  await mkdir2(dirname2(path), { recursive: true, mode: 448 });
+  const temp = `${path}.${randomHex(6)}.tmp`;
+  const handle = await open2(temp, "w", 384);
+  try {
+    await handle.writeFile(contents, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  try {
+    await rename2(temp, path);
+  } catch (error) {
+    await unlink3(temp).catch(() => void 0);
+    throw error;
+  }
+  await chmod2(path, 384).catch(() => void 0);
+}
+async function writeHostDescriptor(metaPath, descriptor) {
+  if (!isHostDescriptor(descriptor)) {
+    throw new Error(`pre-edit review: refusing to write an invalid HostDescriptor to ${metaPath}`);
+  }
+  await writeAtomically(metaPath, `${JSON.stringify(descriptor, null, 2)}
+`);
+}
+async function readHostDescriptor(metaPath) {
+  try {
+    const parsed = JSON.parse(await readFile2(metaPath, "utf8"));
+    return isHostDescriptor(parsed) ? parsed : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function sameOwner(current, expected) {
+  if (expected.instanceId !== void 0 && current.instanceId !== void 0) {
+    return current.key === expected.key && current.instanceId === expected.instanceId;
+  }
+  return current.key === expected.key && current.pid === expected.pid && current.startedAt === expected.startedAt;
+}
+async function removeHostDescriptor(metaPath, expected) {
+  if (expected !== void 0) {
+    const current = await readHostDescriptor(metaPath);
+    if (current === void 0 || !sameOwner(current, expected)) return false;
+  }
+  try {
+    await unlink3(metaPath);
+    return true;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+// packages/dsh-plugin/src/staging/store.ts
+import { chmod as chmod3, mkdir as mkdir3, open as open3, readFile as readFile3, readdir, rename as rename3, unlink as unlink4 } from "node:fs/promises";
+import { join as join5 } from "node:path";
 var StagingStore = class _StagingStore {
   dir;
   now;
@@ -1232,16 +1577,16 @@ var StagingStore = class _StagingStore {
   }
   /** Create the state directories with owner-only permissions. */
   async init() {
-    await mkdir2(join3(this.dir, "staging"), { recursive: true, mode: 448 });
-    await mkdir2(join3(this.dir, "audit"), { recursive: true, mode: 448 });
+    await mkdir3(join5(this.dir, "staging"), { recursive: true, mode: 448 });
+    await mkdir3(join5(this.dir, "audit"), { recursive: true, mode: 448 });
   }
   recordPath(requestId) {
-    return join3(this.dir, "staging", `${requestId}.json`);
+    return join5(this.dir, "staging", `${requestId}.json`);
   }
   async create(record) {
     const path = this.recordPath(record.requestId);
     const temp = `${path}.${randomHex(6)}.tmp`;
-    const handle = await open(temp, "w", 384);
+    const handle = await open3(temp, "w", 384);
     try {
       await handle.writeFile(`${JSON.stringify(record, null, 2)}
 `, "utf8");
@@ -1249,11 +1594,11 @@ var StagingStore = class _StagingStore {
     } finally {
       await handle.close();
     }
-    await rename(temp, path);
+    await rename3(temp, path);
   }
   async get(requestId) {
     try {
-      const raw = await readFile2(this.recordPath(requestId), "utf8");
+      const raw = await readFile3(this.recordPath(requestId), "utf8");
       return JSON.parse(raw);
     } catch (error) {
       if (error.code === "ENOENT") return void 0;
@@ -1261,7 +1606,7 @@ var StagingStore = class _StagingStore {
     }
   }
   async list() {
-    const entries = await readdir(join3(this.dir, "staging")).catch(() => []);
+    const entries = await readdir(join5(this.dir, "staging")).catch(() => []);
     const records = [];
     for (const entry of entries) {
       if (!entry.endsWith(".json")) continue;
@@ -1299,14 +1644,16 @@ var StagingStore = class _StagingStore {
     return expired;
   }
   async remove(requestId) {
-    await unlink2(this.recordPath(requestId)).catch(() => void 0);
+    await unlink4(this.recordPath(requestId)).catch(() => void 0);
   }
   /** Append one audit line (hashes and paths only, never file content). */
   async audit(event) {
     const now = new Date(this.now());
-    const file = join3(this.dir, "audit", `${now.toISOString().slice(0, 7)}.jsonl`);
-    await chmod2(file, 384).catch(() => void 0);
-    const handle = await open(file, "a", 384);
+    const dir = join5(this.dir, "audit");
+    await mkdir3(dir, { recursive: true, mode: 448 });
+    const file = join5(dir, `${now.toISOString().slice(0, 7)}.jsonl`);
+    await chmod3(file, 384).catch(() => void 0);
+    const handle = await open3(file, "a", 384);
     try {
       await handle.writeFile(`${JSON.stringify({ at: now.toISOString(), ...event })}
 `, "utf8");
@@ -1316,7 +1663,7 @@ var StagingStore = class _StagingStore {
   }
 };
 
-// src/targets/direct-workspace.ts
+// packages/dsh-plugin/src/targets/direct-workspace.ts
 import { relative } from "node:path";
 function versionOf(info) {
   return info?.version;
@@ -1410,7 +1757,7 @@ var DirectWorkspaceTarget = class {
   }
 };
 
-// src/targets/git-worktree.ts
+// packages/dsh-plugin/src/targets/git-worktree.ts
 var NotImplementedError = class extends Error {
   code = "NOT_IMPLEMENTED";
   constructor(message) {
@@ -1432,7 +1779,7 @@ var GitWorktreeTarget = class {
   }
 };
 
-// src/targets/index.ts
+// packages/dsh-plugin/src/targets/index.ts
 function createCommitTarget(kind) {
   switch (kind) {
     case "direct-workspace":
@@ -1458,15 +1805,20 @@ function createCommitTargetHost(ctx, cwd) {
   };
 }
 
-// src/runtime.ts
-var PLUGIN_VERSION = "0.2.1";
-function createRuntime(ctx, config, logger) {
-  const store = new StagingStore({ dir: config.stateDir });
-  const pause = createPauseRegistry();
+// packages/dsh-plugin/src/runtime.ts
+var PLUGIN_VERSION = "0.3.0";
+function createRuntime(ctx, config, logger, options = {}) {
+  const paths = resolveHostPaths(config, ctx);
+  const store = new StagingStore({ dir: paths.hostDir });
+  const activation = createActivationRegistry(config.defaultActive);
+  const killed = () => options.isKilled?.() === true;
   let coordinatorRef;
   const ipc = new IpcServer({
-    stateDir: config.stateDir,
-    socketPath: config.socketPath,
+    stateDir: paths.hostDir,
+    socketPath: paths.socketPath,
+    tokenPath: paths.tokenPath,
+    hostKey: paths.hostKey,
+    hostLabel: paths.hostLabel,
     serverVersion: PLUGIN_VERSION,
     handleDecision: (decision) => {
       if (coordinatorRef === void 0) {
@@ -1476,9 +1828,9 @@ function createRuntime(ctx, config, logger) {
     },
     onClientChanged: (connected) => {
       logger.info(`[pre-edit-review] review client ${connected ? "connected" : "disconnected"}`);
-      if (connected) ipc.notifyMode({ paused: pause.anyPaused() });
+      if (connected) ipc.notifyMode({ paused: killed() || activation.anyInactive() });
     },
-    mode: () => pause.anyPaused()
+    mode: () => killed() || activation.anyInactive()
   });
   const target = createCommitTarget("direct-workspace");
   const coordinator = new ReviewCoordinator({
@@ -1490,9 +1842,41 @@ function createRuntime(ctx, config, logger) {
     createHost: (cwd) => createCommitTargetHost(ctx, cwd)
   });
   coordinatorRef = coordinator;
+  const descriptor = {
+    key: paths.hostKey,
+    label: paths.hostLabel,
+    pid: process.pid,
+    pluginVersion: PLUGIN_VERSION,
+    instanceId: randomHex(8),
+    startedAt: Date.now(),
+    stateDir: paths.hostDir,
+    socketPath: paths.socketPath,
+    tokenPath: paths.tokenPath
+  };
+  let descriptorPublished = false;
   const ready = (async () => {
     await store.init();
+    try {
+      const legacy = await cleanupLegacyRoot(paths.root);
+      if (legacy.socketRemoved) {
+        logger.info(
+          `[pre-edit-review] removed a stale 0.2.x root socket/token under ${paths.root}; Hosts now live under hosts/<hostKey>/`
+        );
+      }
+    } catch (error) {
+      logger.warn(
+        `[pre-edit-review] could not clean up the retired legacy socket: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
     await ipc.start();
+    try {
+      await writeHostDescriptor(paths.metaPath, descriptor);
+      descriptorPublished = true;
+    } catch (error) {
+      logger.warn(
+        `[pre-edit-review] could not publish ${paths.metaPath}: ${error instanceof Error ? error.message : String(error)}; the VS Code extension will not discover this Host`
+      );
+    }
     const expired = await store.expirePending();
     if (expired.length > 0) {
       logger.warn(`[pre-edit-review] marked ${expired.length} pending review(s) expired after restart; nothing was committed`);
@@ -1519,20 +1903,28 @@ function createRuntime(ctx, config, logger) {
   });
   return {
     config,
+    paths,
     store,
     ipc,
     coordinator,
-    pause,
+    activation,
     ready,
     dispose: async () => {
       await ipc.stop();
+      if (!descriptorPublished) return;
+      descriptorPublished = false;
+      await removeHostDescriptor(paths.metaPath, descriptor).catch((error) => {
+        logger.warn(
+          `[pre-edit-review] could not remove ${paths.metaPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      });
     }
   };
 }
 
-// src/history.ts
-import { readdir as readdir2, readFile as readFile3 } from "node:fs/promises";
-import { join as join4 } from "node:path";
+// packages/dsh-plugin/src/history.ts
+import { readdir as readdir2, readFile as readFile4 } from "node:fs/promises";
+import { join as join6 } from "node:path";
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -1560,8 +1952,7 @@ function parseAuditLines(lines, limit) {
   }
   return entries;
 }
-async function readAuditHistory(stateDir, limit) {
-  const auditDir = join4(stateDir, "audit");
+async function readAuditHistory(auditDir, limit) {
   let files;
   try {
     files = (await readdir2(auditDir)).filter((name2) => name2.endsWith(".jsonl")).sort().reverse();
@@ -1573,7 +1964,7 @@ async function readAuditHistory(stateDir, limit) {
     if (entries.length >= limit) break;
     let lines;
     try {
-      lines = (await readFile3(join4(auditDir, file), "utf8")).split("\n");
+      lines = (await readFile4(join6(auditDir, file), "utf8")).split("\n");
     } catch {
       continue;
     }
@@ -1592,14 +1983,15 @@ function formatHistory(entries, limit = 10) {
   }).join("\n");
 }
 
-// src/index.ts
+// packages/dsh-plugin/src/index.ts
 var name = "pre-edit-review";
 var inject = ["fs", "tools"];
-var PROMPT_SECTION = `File changes are reviewed before they are written. Call write/edit normally; the user reviews each change as an editable diff in VS Code and may accept it, edit it, or reject it.
+var PROMPT_SECTION = `Pre-edit review may be enabled for this session. When the user has enabled it, file changes are reviewed before they are written: call write/edit normally; the user reviews each change as an editable diff in VS Code and may accept it, edit it, or reject it.
 
+- Review state is per session, so do not assume a call is reviewed. Do not try to enable or disable review yourself; only the user can do that with the /review command.
 - If a change is rejected, the file was NOT modified: ask what should change before proposing again.
 - If the file changed while it was being reviewed, the approved change is NOT written: re-read the file and propose again against the current content.
-- Do not try to bypass the review (no shell redirection, script, or indirect write) to make a change land.
+- If review is enabled, do not try to bypass it (no shell redirection, script, or indirect write) to make a change land.
 - If the user edited your proposal before accepting, re-read the file before your next change; the user's version is what landed.`;
 function checkHostCapabilities(ctx) {
   try {
@@ -1640,25 +2032,46 @@ function apply(ctx, rawConfig = {}) {
     );
     return;
   }
+  const killSwitch = createKillSwitch(config.stateDir);
   let runtime;
   try {
-    runtime = createRuntime(ctx, config, logger);
+    runtime = createRuntime(ctx, config, logger, { isKilled: () => killSwitch.active() });
   } catch (error) {
     logger.error(`[pre-edit-review] failed to assemble runtime: ${error instanceof Error ? error.message : String(error)}`);
     return;
   }
-  const killSwitch = createKillSwitch(config.stateDir);
   const disposers = [];
-  disposers.push(installGate({ ctx, config, coordinator: runtime.coordinator, killSwitch, pause: runtime.pause }));
+  disposers.push(installGate({ ctx, config, coordinator: runtime.coordinator, killSwitch, activation: runtime.activation }));
   disposers.push(installPostExecuteNotice(ctx, runtime.coordinator));
-  installCommands(ctx, runtime, logger);
+  disposers.push(installSessionLifecycleRefresh(ctx, runtime, killSwitch));
+  installCommands(ctx, runtime, killSwitch, logger);
   installPromptSection(ctx);
   logger.info(
-    `[pre-edit-review] mounted v${PLUGIN_VERSION} (mode=${config.mode}, reviewTools=${config.reviewTools.join(",")}, socket=${config.socketPath}, killSwitch=${killSwitch.path})`
+    `[pre-edit-review] mounted v${PLUGIN_VERSION} (host=${runtime.paths.hostKey}, mode=${config.mode}, defaultActive=${config.defaultActive}, reviewTools=${config.reviewTools.join(",")}, hostDir=${runtime.paths.hostDir}, socket=${runtime.paths.socketPath}, killSwitch=${killSwitch.path})`
   );
+  if (!config.defaultActive) {
+    logger.info("[pre-edit-review] review is INACTIVE by default; a session opts in with /review on");
+  }
+  if (runtime.paths.hostKey === "default") {
+    logger.warn(
+      '[pre-edit-review] could not derive a Host key from profileContext/DSH_PROFILE; using "default". Two profiles will collide on the same namespace \u2014 set hostKey in the plugin config or run a DSH version that exposes profileContext.'
+    );
+  }
   if (killSwitch.active()) {
     logger.warn(`[pre-edit-review] kill switch is ACTIVE (${killSwitch.path}); every review is bypassed until it is removed`);
   }
+  let lastKilled = killSwitch.active();
+  const killWatch = setInterval(() => {
+    const killed = killSwitch.active();
+    if (killed === lastKilled) return;
+    lastKilled = killed;
+    try {
+      runtime.ipc.notifyMode({ paused: killed || runtime.activation.anyInactive() });
+    } catch {
+    }
+  }, 2e3);
+  killWatch.unref?.();
+  disposers.push(() => clearInterval(killWatch));
   const dispose = () => {
     for (const disposeOne of disposers.splice(0)) {
       try {
@@ -1685,16 +2098,17 @@ function installPostExecuteNotice(ctx, coordinator) {
     { prepend: false }
   );
 }
-function installCommands(ctx, runtime, logger) {
+function installCommands(ctx, runtime, killSwitch, logger) {
   if (ctx.inject === void 0) return;
   ctx.inject(["commands"], (sub) => {
     sub.commands.register({
       name: "review",
-      description: "Pre-edit review status; pause/resume review or switch between strict and balanced file policy",
+      description: "Pre-edit review status; enable/disable review for this session, switch the file policy, or show history",
       input: { hint: "[status|on|off|strict|balanced|history [n]]" },
       handler: async (invocation) => {
         const raw = String(invocation?.rawInput ?? "").trim().toLowerCase();
         const config = runtime.config;
+        const paths = runtime.paths;
         const agent = invocation?.agent;
         const switchPreset = (name2) => {
           const permission = ctx.get("permissionPresets");
@@ -1711,42 +2125,56 @@ function installCommands(ctx, runtime, logger) {
             };
           }
         };
-        const setPaused = async (paused) => {
-          const session = agent?.session;
-          if (session === void 0) {
-            return { kind: "error", text: "review pause needs an agent session" };
+        const setActivation = async (active) => {
+          const key = sessionKeyOf(agent);
+          if (key === void 0) {
+            return { kind: "error", text: "pre-edit review activation needs an agent session" };
           }
-          if (paused && !config.allowPause) {
-            return { kind: "error", text: "review pause is disabled by configuration (allowPause: false)" };
+          if (!active && !config.allowPause) {
+            return { kind: "error", text: "pre-edit review deactivation is disabled by configuration (allowPause: false)" };
           }
-          const was = runtime.pause.isPaused(session);
-          runtime.pause.set(session, paused);
-          runtime.ipc.notifyMode({ paused: runtime.pause.anyPaused() });
-          if (was !== paused) {
-            await runtime.store.audit({
-              event: paused ? "review/paused" : "review/resumed",
-              sessionId: String(session.id ?? "unknown")
-            });
+          if (active && config.mode === "off") {
+            return {
+              kind: "error",
+              text: 'pre-edit review is disabled by the profile configuration (mode: "off"), so /review on cannot enable it. Set mode: review in the plugin config and restart the Host.'
+            };
           }
-          if (paused) {
+          const was = runtime.activation.isActive(agent);
+          if (!runtime.activation.set(agent, active)) {
+            return { kind: "error", text: "pre-edit review could not identify this session" };
+          }
+          runtime.ipc.notifyMode({ paused: killSwitch.active() || runtime.activation.anyInactive() });
+          if (was !== active) {
+            try {
+              await runtime.store.audit({
+                event: active ? "review/activated" : "review/deactivated",
+                sessionId: key
+              });
+            } catch (error) {
+              logger.warn(
+                `[pre-edit-review] could not write the activation audit line: ${error instanceof Error ? error.message : String(error)}`
+              );
+            }
+          }
+          if (active) {
             return {
               kind: "success",
-              text: "Pre-edit review: OFF for this session \u2014 the agent writes files directly, without a review request. The sandbox policy is unchanged (read-only still denies writes). Run /review on to restore review.\n\u5DF2\u6682\u505C\u672C\u4F1A\u8BDD\u7684\u4FEE\u6539\u524D\u5BA1\u9605\uFF1A\u6587\u4EF6\u4FEE\u6539\u5C06\u76F4\u63A5\u6267\u884C\u3001\u4E0D\u518D\u5F39\u51FA\u5BA1\u6279\uFF1B\u6587\u4EF6\u7B56\u7565\u4E0D\u53D8\u3002\u8F93\u5165 /review on \u6062\u590D\u5BA1\u6279\u3002"
+              text: "Pre-edit review: ACTIVE for this session \u2014 file writes are reviewed before they are written.\n\u5DF2\u4E3A\u672C\u4F1A\u8BDD\u5F00\u542F\u4FEE\u6539\u524D\u5BA1\u9605\uFF1A\u6587\u4EF6\u4FEE\u6539\u4F1A\u5148\u63D0\u4EA4\u5BA1\u6279\uFF0C\u540C\u610F\u540E\u624D\u5199\u5165\u3002"
             };
           }
           return {
             kind: "success",
-            text: "Pre-edit review: ON for this session \u2014 file writes are reviewed again.\n\u6062\u590D\u672C\u4F1A\u8BDD\u7684\u4FEE\u6539\u524D\u5BA1\u9605\uFF1A\u6587\u4EF6\u4FEE\u6539\u91CD\u65B0\u9700\u8981\u5BA1\u6279\u3002"
+            text: "Pre-edit review: INACTIVE for this session \u2014 the agent writes files directly, without a review request. The sandbox policy is unchanged (read-only still denies writes). Run /review on to enable review again.\n\u5DF2\u5173\u95ED\u672C\u4F1A\u8BDD\u7684\u4FEE\u6539\u524D\u5BA1\u9605\uFF1A\u6587\u4EF6\u4FEE\u6539\u5C06\u76F4\u63A5\u6267\u884C\u3001\u4E0D\u518D\u5F39\u51FA\u5BA1\u6279\uFF1B\u6587\u4EF6\u7B56\u7565\u4E0D\u53D8\u3002\u8F93\u5165 /review on \u91CD\u65B0\u5F00\u542F\u3002"
           };
         };
-        if (raw === "on") return await setPaused(false);
-        if (raw === "off") return await setPaused(true);
+        if (raw === "on") return await setActivation(true);
+        if (raw === "off") return await setActivation(false);
         if (raw === "strict") return switchPreset("read-only");
         if (raw === "balanced") return switchPreset("workspace-write");
         if (raw === "history" || raw.startsWith("history ")) {
           const requested = Number(raw.slice("history".length).trim());
           const limit = Number.isInteger(requested) && requested > 0 ? Math.min(requested, 50) : 10;
-          const entries = await readAuditHistory(config.stateDir, limit);
+          const entries = await readAuditHistory(paths.auditDir, limit);
           return { kind: "success", text: formatHistory(entries, limit) };
         }
         if (raw === "" || raw === "status") {
@@ -1759,24 +2187,63 @@ function installCommands(ctx, runtime, logger) {
             sandboxMode = "unknown";
           }
           const strict = sandboxMode === "read-only";
-          const paused = runtime.pause.isPaused(agent?.session);
+          const sessionActive = runtime.activation.isActive(agent);
+          const hostLine = paths.hostLabel === paths.hostKey ? paths.hostKey : `${paths.hostKey} (${paths.hostLabel})`;
           const lines = [
-            `Pre-edit review: ${config.enabled ? "ON" : "OFF"} (mode=${status.mode})`,
+            `Pre-edit review: v${PLUGIN_VERSION} (mode=${status.mode})`,
+            `host: ${hostLine}`,
+            `install default: ${config.defaultActive ? "active" : "inactive"}`,
+            `this session: ${sessionActive ? "ACTIVE \u2014 writes are reviewed before they are written" : "INACTIVE \u2014 writes go through without review"}`,
             `review client: ${status.connected ? "connected" : "NOT connected"}`,
             `pending reviews: ${status.pending}`,
-            `review: ${paused ? "PAUSED for this session \u2014 writes are NOT reviewed (/review on to resume)" : "on (/review off to pause this session)"}`,
             `file policy: ${sandboxMode} ${strict ? "(strict: ALL writes require approval)" : "(tool-level: shell writes are NOT reviewed)"}`,
-            `state dir: ${status.stateDir}`,
-            `socket: ${status.socketPath}`
+            `host dir: ${paths.hostDir}`,
+            `socket: ${paths.socketPath}`,
+            `kill switch: ${killSwitch.active() ? `ACTIVE (${killSwitch.path}) \u2014 every review is bypassed` : "not active"}`
           ];
           if (!strict) lines.push("tip: /review strict switches this session to read-only, the only mode that cannot be bypassed.");
+          if (!sessionActive && config.mode !== "off") lines.push("tip: /review on enables review for this session.");
           return { kind: "success", text: lines.join("\n") };
         }
-        return { kind: "error", text: `unknown /review argument "${raw}" (use status|on|off|strict|balanced|history [n])` };
+        return {
+          kind: "error",
+          text: `unknown /review argument "${raw}" (use status|on|off|strict|balanced|history [n])`
+        };
       }
     });
     logger.info("[pre-edit-review] /review command registered");
   });
+}
+function installSessionLifecycleRefresh(ctx, runtime, killSwitch) {
+  const disposers = [];
+  const refresh = (candidate) => {
+    try {
+      const was = runtime.activation.anyInactive();
+      const removed = runtime.activation.forget(candidate);
+      if (!removed) return;
+      const now = runtime.activation.anyInactive();
+      if (now !== was) runtime.ipc.notifyMode({ paused: killSwitch.active() || now });
+    } catch {
+    }
+  };
+  const listeners = [
+    ["session/disposed", (payload) => payload ?? void 0],
+    ["agent/disposed", (payload) => payload?.agent ?? payload ?? void 0]
+  ];
+  for (const [event, select] of listeners) {
+    try {
+      disposers.push(ctx.on(event, (payload) => refresh(select(payload))));
+    } catch {
+    }
+  }
+  return () => {
+    for (const dispose of disposers.splice(0)) {
+      try {
+        dispose();
+      } catch {
+      }
+    }
+  };
 }
 function installPromptSection(ctx) {
   if (ctx.inject === void 0) return;

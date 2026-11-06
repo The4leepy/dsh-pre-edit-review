@@ -12,3 +12,6 @@ dist/
 docs/spike-s*-artifacts/
 .spike-demo/
 .spike-archive/
+
+# DSH CLI runtime artifacts when invoked from the repo cwd
+.dsh/

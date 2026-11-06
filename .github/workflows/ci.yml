@@ -25,3 +25,7 @@ jobs:
         run: pnpm run check
       - name: Build plugin bundle and extension bundle
         run: pnpm run build
+      # The plugin bundle is committed on purpose (DSH installs from git), so CI
+      # must fail when src changed without rebuilding it.
+      - name: Committed plugin bundle matches the sources
+        run: git diff --exit-code -- packages/dsh-plugin/dist/index.mjs
